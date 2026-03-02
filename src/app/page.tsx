@@ -73,7 +73,6 @@ export default function Home() {
   const [pincode, setPincode] = useState('');
   const [deliveryEst, setDeliveryEst] = useState('');
   
-  // [UPDATED] Added City and State to form data
   const [formData, setFormData] = useState({ name: '', number: '', mail: '', address: '', city: '', state: '' });
   
   const [toast, setToast] = useState<string | null>(null);
@@ -106,7 +105,6 @@ export default function Home() {
   const totalPrice = cartItems.reduce((acc, item) => acc + (parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0), 0);
 
   const handleCheckout = async () => {
-    // [UPDATED] Validate City and State
     if (!formData.name || !formData.number || !formData.address || !formData.city || !formData.state || cartItems.length === 0) {
         return triggerToast("Details missing");
     }
@@ -114,6 +112,7 @@ export default function Home() {
     setIsProcessingPayment(true);
 
     try {
+        // 1. Create Order
         const response = await fetch('/api/razorpay', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -130,27 +129,48 @@ export default function Home() {
             name: "Morph Store",
             description: "Artifact Acquisition",
             order_id: orderData.id,
-            handler: function (response: any) {
-                const newOrder: Order = {
-                    id: orderData.id,
-                    customer: formData.name.toUpperCase(),
-                    phone: formData.number,
-                    email: formData.mail,
-                    // [UPDATED] Combine Address, City, State for the Admin Dashboard
-                    address: `${formData.address}, ${formData.city}, ${formData.state}`, 
-                    items: cartItems.map(i => i.name),
-                    amount: totalPrice,
-                    date: new Date().toLocaleDateString(),
-                    status: 'Pending',
-                    pincode: pincode,
-                    paymentId: response.razorpay_payment_id
-                };
-                
-                setOrders(prev => [newOrder, ...prev]);
-                setCartItems([]);
-                setIsCartOpen(false);
-                setIsProcessingPayment(false);
-                triggerToast("Payment Verified. Order Placed.");
+            // [SECURITY UPDATE] Backend Signature Verification
+            handler: async function (response: any) {
+                try {
+                    const verifyRes = await fetch('/api/razorpay/verify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature,
+                        })
+                    });
+
+                    const verifyData = await verifyRes.json();
+
+                    if (verifyData.verified) {
+                        const newOrder: Order = {
+                            id: orderData.id,
+                            customer: formData.name.toUpperCase(),
+                            phone: formData.number,
+                            email: formData.mail,
+                            address: `${formData.address}, ${formData.city}, ${formData.state}`,
+                            items: cartItems.map(i => i.name),
+                            amount: totalPrice,
+                            date: new Date().toLocaleDateString(),
+                            status: 'Pending',
+                            pincode: pincode,
+                            paymentId: response.razorpay_payment_id
+                        };
+                        
+                        setOrders(prev => [newOrder, ...prev]);
+                        setCartItems([]);
+                        setIsCartOpen(false);
+                        triggerToast("SECURE PAYMENT VERIFIED. ORDER PLACED.");
+                    } else {
+                        triggerToast("SECURITY ALERT: Payment Signature Invalid.");
+                    }
+                } catch (err) {
+                    triggerToast("Verification Failed");
+                } finally {
+                    setIsProcessingPayment(false);
+                }
             },
             prefill: {
                 name: formData.name,
