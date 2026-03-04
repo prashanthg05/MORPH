@@ -118,8 +118,10 @@ export default function Home() {
             body: JSON.stringify({ amount: totalPrice })
         });
         
-        if (!response.ok) throw new Error("Network response was not ok");
         const orderData = await response.json();
+        
+        // [UPDATED] This will throw the specific error from the backend instead of a generic one
+        if (!response.ok) throw new Error(orderData.error || "Network error");
 
         const options = {
             key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
@@ -130,7 +132,6 @@ export default function Home() {
             order_id: orderData.id,
             handler: async function (response: any) {
                 try {
-                    // [UPDATED] Send full order details to the backend so D1 can save it securely
                     const verifyRes = await fetch('/api/razorpay/verify', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -156,7 +157,6 @@ export default function Home() {
                     const verifyData = await verifyRes.json();
 
                     if (verifyData.verified) {
-                        // Immediately fetch fresh orders so the admin dashboard is up to date
                         const ordersRes = await fetch('/api/orders');
                         if (ordersRes.ok) {
                             const freshOrders = await ordersRes.json();
@@ -192,20 +192,17 @@ export default function Home() {
         const rzp1 = new window.Razorpay(options);
         rzp1.open();
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Checkout Error:", error);
-        triggerToast("Payment Gateway Error");
+        // [UPDATED] Shows the exact backend error to help debug Cloudflare
+        triggerToast(`Gateway Error: ${error.message}`);
         setIsProcessingPayment(false);
     }
   };
 
-  // [UPDATED] Live Database API Calls for Admin Dashboard
   const updateOrderStatus = async (id: string, newStatus: Order['status']) => {
-      // Optimistic UI Update
       setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus } : o));
       triggerToast(`Order -> ${newStatus}`);
-      
-      // Update D1 Database
       try {
           await fetch('/api/orders', {
               method: 'PUT',
@@ -218,11 +215,8 @@ export default function Home() {
   };
 
   const deleteOrder = async (id: string) => {
-      // Optimistic UI Update
       setOrders(prev => prev.filter(o => o.id !== id));
       triggerToast("Order Purged");
-
-      // Delete from D1 Database
       try {
           await fetch('/api/orders', {
               method: 'DELETE',
@@ -299,24 +293,36 @@ export default function Home() {
 
   // --- 3. PERSISTENCE & COMPUTATION ---
   useEffect(() => {
-    // [UPDATED] Added cart loading and live D1 database fetching
     const savedProds = localStorage.getItem('morph_prods');
     const savedCats = localStorage.getItem('morph_cats');
     const savedCart = localStorage.getItem('morph_cart');
+    const savedBuyer = localStorage.getItem('morph_buyer_info'); // [UPDATED] Load Autofill Data
     
     if (savedProds) setProducts(JSON.parse(savedProds));
     else setProducts([{ id: 1, name: 'VECNA BUST', price: 'INR 449.00', tag: 'TOP SELLING', category: 'Stranger Things', imgs: ['/Strangerthings1.jpeg'], dimensions: '14.2cm H', stock: 'AVAILABLE', description: 'Terrifying detail.', reviews: [] }]);
     if (savedCats) setCategories(JSON.parse(savedCats));
-    
-    // Load Cart Addon
     if (savedCart) setCartItems(JSON.parse(savedCart));
 
-    // Fetch live orders from D1 Database
+    // [UPDATED] Apply Autofill Data
+    if (savedBuyer) {
+        try {
+            const parsed = JSON.parse(savedBuyer);
+            if (parsed.formData) setFormData(parsed.formData);
+            if (parsed.pincode) {
+                setPincode(parsed.pincode);
+                const val = parsed.pincode;
+                if (val.length === 6) {
+                    const region = val.substring(0, 2);
+                    if (['56', '57', '58', '59'].includes(region)) setDeliveryEst("3-4 Days (Karnataka)");
+                    else setDeliveryEst("5-6 Days (National)");
+                }
+            }
+        } catch (e) { console.error("Error loading autofill data"); }
+    }
+
     fetch('/api/orders')
         .then(res => res.json())
-        .then(data => {
-            if(Array.isArray(data)) setOrders(data);
-        })
+        .then(data => { if(Array.isArray(data)) setOrders(data); })
         .catch(err => console.error("Error loading orders from DB:", err));
 
     setIsLoaded(true);
@@ -330,11 +336,11 @@ export default function Home() {
     if (isLoaded) { 
         localStorage.setItem('morph_prods', JSON.stringify(products)); 
         localStorage.setItem('morph_cats', JSON.stringify(categories)); 
-        // Save Cart Addon
         localStorage.setItem('morph_cart', JSON.stringify(cartItems));
-        // Note: We no longer save orders to localStorage! They live in D1.
+        // [UPDATED] Save Autofill Data
+        localStorage.setItem('morph_buyer_info', JSON.stringify({ formData, pincode }));
     } 
-  }, [products, categories, cartItems, isLoaded]);
+  }, [products, categories, cartItems, formData, pincode, isLoaded]);
 
   const storeProducts = useMemo(() => products.filter(p => p.category === activeCategory), [products, activeCategory]);
   
@@ -493,7 +499,6 @@ export default function Home() {
                                                 <option className="bg-black text-green-500" value="Shipped">Shipped</option>
                                             </select>
                                         </td>
-                                        {/* [UPDATED] Uses the async deleteOrder function to remove from Database */}
                                         <td className="p-6 text-right align-top"><button onClick={() => deleteOrder(o.id)} className="text-red-500/30 hover:text-red-500"><Trash2 size={16}/></button></td>
                                     </tr>
                                 ))}
@@ -640,18 +645,19 @@ export default function Home() {
                 <div key={`cart-${idx}`} className="flex justify-between items-center bg-white/5 p-7 rounded-[2rem] border border-white/5 shadow-xl transition-all hover:border-[#6f01ff]/30"><div><span className="font-black italic text-md uppercase block text-white">{item.name}</span><span className="text-[10px] text-[#6f01ff] font-bold uppercase">{item.dimensions}</span></div><div className="flex items-center space-x-6"><span className="text-white font-black text-md">{item.price}</span><button onClick={() => removeFromCart(idx)} className="p-2 text-white/20 hover:text-red-500 transition-colors"><Trash2 size={20} /></button></div></div>
             ))}</div>
             <div className="space-y-5">
-              <input type="text" placeholder="NAME" className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, name: e.target.value})}/>
-              <input type="text" placeholder="PHONE" className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, number: e.target.value})}/>
-              <input type="email" placeholder="EMAIL" className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, mail: e.target.value})}/>
-              <textarea placeholder="ADDRESS" rows={3} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all font-bold" onChange={(e)=>setFormData({...formData, address: e.target.value})}></textarea>
+              {/* [UPDATED] Inputs now use value={} from state for autofill to work visually */}
+              <input type="text" placeholder="NAME" value={formData.name} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, name: e.target.value})}/>
+              <input type="text" placeholder="PHONE" value={formData.number} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, number: e.target.value})}/>
+              <input type="email" placeholder="EMAIL" value={formData.mail} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, mail: e.target.value})}/>
+              <textarea placeholder="ADDRESS" rows={3} value={formData.address} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all font-bold" onChange={(e)=>setFormData({...formData, address: e.target.value})}></textarea>
               
               <div className="flex gap-4">
-                  <input type="text" placeholder="CITY" className="w-1/2 bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, city: e.target.value})}/>
-                  <input type="text" placeholder="STATE" className="w-1/2 bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, state: e.target.value})}/>
+                  <input type="text" placeholder="CITY" value={formData.city} className="w-1/2 bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, city: e.target.value})}/>
+                  <input type="text" placeholder="STATE" value={formData.state} className="w-1/2 bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, state: e.target.value})}/>
               </div>
 
               <div className="bg-[#6f01ff]/5 border border-[#6f01ff]/20 p-8 rounded-[3rem] shadow-inner text-center">
-                <input type="text" placeholder="6-DIGIT PIN" maxLength={6} className="bg-black border border-white/10 rounded-2xl px-6 py-4 text-md w-full outline-none font-black text-[#6f01ff] tracking-[0.6em] text-center" onChange={(e) => handlePincodeChange(e.target.value)} />
+                <input type="text" placeholder="6-DIGIT PIN" maxLength={6} value={pincode} className="bg-black border border-white/10 rounded-2xl px-6 py-4 text-md w-full outline-none font-black text-[#6f01ff] tracking-[0.6em] text-center" onChange={(e) => handlePincodeChange(e.target.value)} />
                 {deliveryEst && <div className="mt-4 flex items-center justify-center space-x-4 text-green-400 font-black text-xs uppercase italic animate-bounce"><Truck size={22} /><span>{deliveryEst}</span></div>}
               </div>
               <div className="pt-10 border-t border-white/10 text-center">
