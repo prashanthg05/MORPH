@@ -112,7 +112,6 @@ export default function Home() {
     setIsProcessingPayment(true);
 
     try {
-        // 1. Create Order
         const response = await fetch('/api/razorpay', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -129,9 +128,9 @@ export default function Home() {
             name: "Morph Store",
             description: "Artifact Acquisition",
             order_id: orderData.id,
-            // [SECURITY UPDATE] Backend Signature Verification
             handler: async function (response: any) {
                 try {
+                    // [UPDATED] Send full order details to the backend so D1 can save it securely
                     const verifyRes = await fetch('/api/razorpay/verify', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -139,27 +138,31 @@ export default function Home() {
                             razorpay_order_id: response.razorpay_order_id,
                             razorpay_payment_id: response.razorpay_payment_id,
                             razorpay_signature: response.razorpay_signature,
+                            orderDetails: {
+                                id: orderData.id,
+                                customer: formData.name.toUpperCase(),
+                                phone: formData.number,
+                                email: formData.mail,
+                                address: `${formData.address}, ${formData.city}, ${formData.state}`,
+                                items: cartItems.map(i => i.name),
+                                amount: totalPrice,
+                                date: new Date().toLocaleDateString(),
+                                status: 'Pending',
+                                pincode: pincode
+                            }
                         })
                     });
 
                     const verifyData = await verifyRes.json();
 
                     if (verifyData.verified) {
-                        const newOrder: Order = {
-                            id: orderData.id,
-                            customer: formData.name.toUpperCase(),
-                            phone: formData.number,
-                            email: formData.mail,
-                            address: `${formData.address}, ${formData.city}, ${formData.state}`,
-                            items: cartItems.map(i => i.name),
-                            amount: totalPrice,
-                            date: new Date().toLocaleDateString(),
-                            status: 'Pending',
-                            pincode: pincode,
-                            paymentId: response.razorpay_payment_id
-                        };
+                        // Immediately fetch fresh orders so the admin dashboard is up to date
+                        const ordersRes = await fetch('/api/orders');
+                        if (ordersRes.ok) {
+                            const freshOrders = await ordersRes.json();
+                            setOrders(freshOrders);
+                        }
                         
-                        setOrders(prev => [newOrder, ...prev]);
                         setCartItems([]);
                         setIsCartOpen(false);
                         triggerToast("SECURE PAYMENT VERIFIED. ORDER PLACED.");
@@ -196,9 +199,39 @@ export default function Home() {
     }
   };
 
-  const updateOrderStatus = (id: string, newStatus: Order['status']) => {
+  // [UPDATED] Live Database API Calls for Admin Dashboard
+  const updateOrderStatus = async (id: string, newStatus: Order['status']) => {
+      // Optimistic UI Update
       setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus } : o));
       triggerToast(`Order -> ${newStatus}`);
+      
+      // Update D1 Database
+      try {
+          await fetch('/api/orders', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id, status: newStatus })
+          });
+      } catch (error) {
+          triggerToast("Failed to sync with Database");
+      }
+  };
+
+  const deleteOrder = async (id: string) => {
+      // Optimistic UI Update
+      setOrders(prev => prev.filter(o => o.id !== id));
+      triggerToast("Order Purged");
+
+      // Delete from D1 Database
+      try {
+          await fetch('/api/orders', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id })
+          });
+      } catch (error) {
+          triggerToast("Failed to delete from Database");
+      }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, target: 'product' | 'category') => {
@@ -264,14 +297,28 @@ export default function Home() {
   const nextImg = (e: React.MouseEvent) => { e.stopPropagation(); if (selectedProduct) setCurrentImgIdx((prev) => (prev + 1) % selectedProduct.imgs.length); };
   const prevImg = (e: React.MouseEvent) => { e.stopPropagation(); if (selectedProduct) setCurrentImgIdx((prev) => (prev - 1 + selectedProduct.imgs.length) % selectedProduct.imgs.length); };
 
+  // --- 3. PERSISTENCE & COMPUTATION ---
   useEffect(() => {
+    // [UPDATED] Added cart loading and live D1 database fetching
     const savedProds = localStorage.getItem('morph_prods');
     const savedCats = localStorage.getItem('morph_cats');
-    const savedOrders = localStorage.getItem('morph_orders');
+    const savedCart = localStorage.getItem('morph_cart');
+    
     if (savedProds) setProducts(JSON.parse(savedProds));
     else setProducts([{ id: 1, name: 'VECNA BUST', price: 'INR 449.00', tag: 'TOP SELLING', category: 'Stranger Things', imgs: ['/Strangerthings1.jpeg'], dimensions: '14.2cm H', stock: 'AVAILABLE', description: 'Terrifying detail.', reviews: [] }]);
     if (savedCats) setCategories(JSON.parse(savedCats));
-    if (savedOrders) setOrders(JSON.parse(savedOrders));
+    
+    // Load Cart Addon
+    if (savedCart) setCartItems(JSON.parse(savedCart));
+
+    // Fetch live orders from D1 Database
+    fetch('/api/orders')
+        .then(res => res.json())
+        .then(data => {
+            if(Array.isArray(data)) setOrders(data);
+        })
+        .catch(err => console.error("Error loading orders from DB:", err));
+
     setIsLoaded(true);
 
     const handleKeyDown = (e: KeyboardEvent) => { if (e.shiftKey && e.key === 'A') setShowLogin(true); };
@@ -279,11 +326,15 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  useEffect(() => { if (isLoaded) { 
-    localStorage.setItem('morph_prods', JSON.stringify(products)); 
-    localStorage.setItem('morph_cats', JSON.stringify(categories)); 
-    localStorage.setItem('morph_orders', JSON.stringify(orders));
-  } }, [products, categories, orders, isLoaded]);
+  useEffect(() => { 
+    if (isLoaded) { 
+        localStorage.setItem('morph_prods', JSON.stringify(products)); 
+        localStorage.setItem('morph_cats', JSON.stringify(categories)); 
+        // Save Cart Addon
+        localStorage.setItem('morph_cart', JSON.stringify(cartItems));
+        // Note: We no longer save orders to localStorage! They live in D1.
+    } 
+  }, [products, categories, cartItems, isLoaded]);
 
   const storeProducts = useMemo(() => products.filter(p => p.category === activeCategory), [products, activeCategory]);
   
@@ -442,7 +493,8 @@ export default function Home() {
                                                 <option className="bg-black text-green-500" value="Shipped">Shipped</option>
                                             </select>
                                         </td>
-                                        <td className="p-6 text-right align-top"><button onClick={()=>setOrders(orders.filter(ord=>ord.id!==o.id))} className="text-red-500/30 hover:text-red-500"><Trash2 size={16}/></button></td>
+                                        {/* [UPDATED] Uses the async deleteOrder function to remove from Database */}
+                                        <td className="p-6 text-right align-top"><button onClick={() => deleteOrder(o.id)} className="text-red-500/30 hover:text-red-500"><Trash2 size={16}/></button></td>
                                     </tr>
                                 ))}
                                 {filteredOrders.length === 0 && (<tr><td colSpan={5} className="p-12 text-center opacity-10 font-black italic uppercase tracking-widest">No {adminOrderFilter} Orders</td></tr>)}
@@ -593,7 +645,6 @@ export default function Home() {
               <input type="email" placeholder="EMAIL" className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, mail: e.target.value})}/>
               <textarea placeholder="ADDRESS" rows={3} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all font-bold" onChange={(e)=>setFormData({...formData, address: e.target.value})}></textarea>
               
-              {/* [UPDATED] City & State Row */}
               <div className="flex gap-4">
                   <input type="text" placeholder="CITY" className="w-1/2 bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, city: e.target.value})}/>
                   <input type="text" placeholder="STATE" className="w-1/2 bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, state: e.target.value})}/>
