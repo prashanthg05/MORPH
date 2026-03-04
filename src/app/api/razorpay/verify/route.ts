@@ -7,14 +7,17 @@ export async function POST(request: Request) {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderDetails } = await request.json();
 
     const body = razorpay_order_id + "|" + razorpay_payment_id;
-    const secret = process.env.RAZORPAY_KEY_SECRET || "";
-
-    if (!secret) {
-        console.error("CRITICAL: Missing RAZORPAY_KEY_SECRET in environment");
-        return NextResponse.json({ message: "Server misconfiguration", verified: false }, { status: 500 });
+    
+    // Check if the secret exists
+    const rawSecret = process.env.RAZORPAY_KEY_SECRET;
+    if (!rawSecret) {
+        return NextResponse.json({ message: "Backend Error: RAZORPAY_KEY_SECRET is missing", verified: false }, { status: 400 });
     }
 
-    // [UPDATED] Using Native Web Crypto API for Cloudflare Edge
+    // .trim() automatically removes hidden spaces that break the signature
+    const secret = rawSecret.trim();
+
+    // Using Native Web Crypto API for Cloudflare Edge
     const encoder = new TextEncoder();
     const keyData = encoder.encode(secret);
     const messageData = encoder.encode(body);
@@ -56,12 +59,11 @@ export async function POST(request: Request) {
 
       return NextResponse.json({ message: "success", verified: true });
     } else {
-      console.error("Signature mismatch. Expected:", expectedSignature, "Got:", razorpay_signature);
-      return NextResponse.json({ message: "Invalid Signature", verified: false }, { status: 400 });
+      return NextResponse.json({ message: "Secret key does not match Razorpay signature", verified: false }, { status: 400 });
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Verification/DB Error:", error);
-    return NextResponse.json({ message: "Error verifying payment", verified: false }, { status: 500 });
+    return NextResponse.json({ message: `Server Error: ${error.message}`, verified: false }, { status: 500 });
   }
 }
