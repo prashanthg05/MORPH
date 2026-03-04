@@ -119,12 +119,10 @@ export default function Home() {
         });
         
         const orderData = await response.json();
-        
-        // [UPDATED] This will throw the specific error from the backend instead of a generic one
         if (!response.ok) throw new Error(orderData.error || "Network error");
 
         const options = {
-            key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+            key: orderData.key_id, // [BULLETPROOF FIX] Pulls the key directly from the live backend
             amount: orderData.amount,
             currency: orderData.currency,
             name: "Morph Store",
@@ -194,7 +192,6 @@ export default function Home() {
 
     } catch (error: any) {
         console.error("Checkout Error:", error);
-        // [UPDATED] Shows the exact backend error to help debug Cloudflare
         triggerToast(`Gateway Error: ${error.message}`);
         setIsProcessingPayment(false);
     }
@@ -296,14 +293,13 @@ export default function Home() {
     const savedProds = localStorage.getItem('morph_prods');
     const savedCats = localStorage.getItem('morph_cats');
     const savedCart = localStorage.getItem('morph_cart');
-    const savedBuyer = localStorage.getItem('morph_buyer_info'); // [UPDATED] Load Autofill Data
+    const savedBuyer = localStorage.getItem('morph_buyer_info'); 
     
     if (savedProds) setProducts(JSON.parse(savedProds));
     else setProducts([{ id: 1, name: 'VECNA BUST', price: 'INR 449.00', tag: 'TOP SELLING', category: 'Stranger Things', imgs: ['/Strangerthings1.jpeg'], dimensions: '14.2cm H', stock: 'AVAILABLE', description: 'Terrifying detail.', reviews: [] }]);
     if (savedCats) setCategories(JSON.parse(savedCats));
     if (savedCart) setCartItems(JSON.parse(savedCart));
 
-    // [UPDATED] Apply Autofill Data
     if (savedBuyer) {
         try {
             const parsed = JSON.parse(savedBuyer);
@@ -337,7 +333,6 @@ export default function Home() {
         localStorage.setItem('morph_prods', JSON.stringify(products)); 
         localStorage.setItem('morph_cats', JSON.stringify(categories)); 
         localStorage.setItem('morph_cart', JSON.stringify(cartItems));
-        // [UPDATED] Save Autofill Data
         localStorage.setItem('morph_buyer_info', JSON.stringify({ formData, pincode }));
     } 
   }, [products, categories, cartItems, formData, pincode, isLoaded]);
@@ -355,7 +350,7 @@ export default function Home() {
         return true;
     });
   }, [orders, adminOrderFilter]);
-
+  
   if (!isLoaded) return null;
   // --- 4. ADMIN VIEW ---
   if (view === 'admin') {
