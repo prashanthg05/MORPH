@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import crypto from 'node:crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,13 +7,35 @@ export async function POST(request: Request) {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderDetails } = await request.json();
 
     const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const secret = process.env.RAZORPAY_KEY_SECRET || "";
 
-    const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
-      .update(body.toString())
-      .digest("hex");
+    if (!secret) {
+        console.error("CRITICAL: Missing RAZORPAY_KEY_SECRET in environment");
+        return NextResponse.json({ message: "Server misconfiguration", verified: false }, { status: 500 });
+    }
+
+    // [UPDATED] Using Native Web Crypto API for Cloudflare Edge
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(secret);
+    const messageData = encoder.encode(body);
+
+    const cryptoKey = await crypto.subtle.importKey(
+        "raw",
+        keyData,
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+    );
+
+    const signatureBuffer = await crypto.subtle.sign("HMAC", cryptoKey, messageData);
+    
+    // Convert the buffer to a Hex String
+    const expectedSignature = Array.from(new Uint8Array(signatureBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
 
     if (expectedSignature === razorpay_signature) {
+      // Signature matches! Save to Cloudflare D1 Database
       const db = process.env.DB as any;
       
       await db.prepare(
@@ -35,6 +56,7 @@ export async function POST(request: Request) {
 
       return NextResponse.json({ message: "success", verified: true });
     } else {
+      console.error("Signature mismatch. Expected:", expectedSignature, "Got:", razorpay_signature);
       return NextResponse.json({ message: "Invalid Signature", verified: false }, { status: 400 });
     }
 
