@@ -1,0 +1,14 @@
+{
+  "name": "themorphstudios",
+  "compatibility_date": "2024-03-04",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "morph_db",
+      "database_id": "08a77d61-b82b-4fc8-a5e0-b20028711286"
+    }
+  ]
+}
