@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,11 +39,19 @@ export async function POST(request: Request) {
 
     // 2. Pre-save the order to D1 Database
     if (orderDetails) {
-        const db = process.env.DB as any;
+        let db: any;
         
-        // [BULLETPROOF CHECK] If wrangler.jsonc failed to connect the DB, catch it here
+        try {
+            // [THE FIX] Use getCloudflareContext to grab the DB on the live server
+            const { env } = getCloudflareContext();
+            db = env.DB;
+        } catch (err) {
+            // Fallback just in case you are testing locally in VS Code
+            db = process.env.DB;
+        }
+        
         if (!db) {
-             return NextResponse.json({ error: 'Cloudflare D1 Database not bound. Check Database ID in wrangler.jsonc' }, { status: 500 });
+             return NextResponse.json({ error: 'Database Context Missing.' }, { status: 500 });
         }
 
         await db.prepare(
