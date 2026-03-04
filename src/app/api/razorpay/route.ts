@@ -15,6 +15,7 @@ export async function POST(request: Request) {
 
     const basicAuth = btoa(`${key_id}:${key_secret}`);
 
+    // 1. Create order in Razorpay
     const response = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
       headers: {
@@ -35,12 +36,13 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Razorpay API Error' }, { status: 500 });
     }
 
+    // 2. Pre-save the order to D1 Database
     if (orderDetails) {
         const db = process.env.DB as any;
         
-        // [SAFETY CHECK] Prevents the "reading 'prepare'" crash
+        // [BULLETPROOF CHECK] If wrangler.jsonc failed to connect the DB, catch it here
         if (!db) {
-            throw new Error("Database Connection Lost. Check wrangler.jsonc.");
+             return NextResponse.json({ error: 'Cloudflare D1 Database not bound. Check Database ID in wrangler.jsonc' }, { status: 500 });
         }
 
         await db.prepare(
