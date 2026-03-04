@@ -73,13 +73,13 @@ export default function Home() {
   const [pincode, setPincode] = useState('');
   const [deliveryEst, setDeliveryEst] = useState('');
   
+  // Buyer Details State
   const [formData, setFormData] = useState({ name: '', number: '', mail: '', address: '', city: '', state: '' });
   
   const [toast, setToast] = useState<string | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   // --- 2. GLOBAL LOGIC ---
-  
   const triggerToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   const addToCart = (product: Product) => {
@@ -121,8 +121,13 @@ export default function Home() {
         const orderData = await response.json();
         if (!response.ok) throw new Error(orderData.error || "Network error");
 
+        // [BULLETPROOF FIX] Pulls the key from 3 possible places to guarantee the window opens
+        const razorpayKey = orderData.key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+        
+        if (!razorpayKey) throw new Error("API Key Missing in Cloudflare");
+
         const options = {
-            key: orderData.key_id, // [BULLETPROOF FIX] Pulls the key directly from the live backend
+            key: razorpayKey, 
             amount: orderData.amount,
             currency: orderData.currency,
             name: "Morph Store",
@@ -293,6 +298,8 @@ export default function Home() {
     const savedProds = localStorage.getItem('morph_prods');
     const savedCats = localStorage.getItem('morph_cats');
     const savedCart = localStorage.getItem('morph_cart');
+    
+    // [ADDON] Retrieve saved buyer address/details
     const savedBuyer = localStorage.getItem('morph_buyer_info'); 
     
     if (savedProds) setProducts(JSON.parse(savedProds));
@@ -300,6 +307,7 @@ export default function Home() {
     if (savedCats) setCategories(JSON.parse(savedCats));
     if (savedCart) setCartItems(JSON.parse(savedCart));
 
+    // [ADDON] Automatically load and fill form data if it exists
     if (savedBuyer) {
         try {
             const parsed = JSON.parse(savedBuyer);
@@ -333,6 +341,8 @@ export default function Home() {
         localStorage.setItem('morph_prods', JSON.stringify(products)); 
         localStorage.setItem('morph_cats', JSON.stringify(categories)); 
         localStorage.setItem('morph_cart', JSON.stringify(cartItems));
+        
+        // [ADDON] Continuously save the form inputs to local web storage
         localStorage.setItem('morph_buyer_info', JSON.stringify({ formData, pincode }));
     } 
   }, [products, categories, cartItems, formData, pincode, isLoaded]);
@@ -350,7 +360,7 @@ export default function Home() {
         return true;
     });
   }, [orders, adminOrderFilter]);
-  
+
   if (!isLoaded) return null;
   // --- 4. ADMIN VIEW ---
   if (view === 'admin') {
@@ -640,7 +650,6 @@ export default function Home() {
                 <div key={`cart-${idx}`} className="flex justify-between items-center bg-white/5 p-7 rounded-[2rem] border border-white/5 shadow-xl transition-all hover:border-[#6f01ff]/30"><div><span className="font-black italic text-md uppercase block text-white">{item.name}</span><span className="text-[10px] text-[#6f01ff] font-bold uppercase">{item.dimensions}</span></div><div className="flex items-center space-x-6"><span className="text-white font-black text-md">{item.price}</span><button onClick={() => removeFromCart(idx)} className="p-2 text-white/20 hover:text-red-500 transition-colors"><Trash2 size={20} /></button></div></div>
             ))}</div>
             <div className="space-y-5">
-              {/* [UPDATED] Inputs now use value={} from state for autofill to work visually */}
               <input type="text" placeholder="NAME" value={formData.name} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, name: e.target.value})}/>
               <input type="text" placeholder="PHONE" value={formData.number} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, number: e.target.value})}/>
               <input type="email" placeholder="EMAIL" value={formData.mail} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, mail: e.target.value})}/>
