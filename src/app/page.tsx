@@ -4,8 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import Script from 'next/script';
 import { 
   ShoppingBag, Maximize, X, Truck, Trash2, Star, ChevronRight, ChevronLeft,
-  LayoutDashboard, PackageSearch, IndianRupee, ShoppingCart, Filter, Lock, Upload,
-  CheckCircle2, Clock, Package
+  LayoutDashboard, PackageSearch, IndianRupee, ShoppingCart, Filter, Lock, Upload
 } from 'lucide-react';
 
 // --- TYPES ---
@@ -115,15 +114,24 @@ export default function Home() {
         const response = await fetch('/api/razorpay', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amount: totalPrice })
+            body: JSON.stringify({ 
+                amount: totalPrice,
+                // [UPDATED] Sending the buyer details so the backend can pre-save the "Awaiting Payment" order
+                orderDetails: {
+                    customer: formData.name.toUpperCase(),
+                    phone: formData.number,
+                    email: formData.mail,
+                    address: `${formData.address}, ${formData.city}, ${formData.state}`,
+                    items: cartItems.map(i => i.name),
+                    pincode: pincode
+                }
+            })
         });
         
         const orderData = await response.json();
         if (!response.ok) throw new Error(orderData.error || "Network error");
 
-        // [BULLETPROOF FIX] Pulls the key from 3 possible places to guarantee the window opens
         const razorpayKey = orderData.key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
-        
         if (!razorpayKey) throw new Error("API Key Missing in Cloudflare");
 
         const options = {
@@ -134,49 +142,17 @@ export default function Home() {
             description: "Artifact Acquisition",
             order_id: orderData.id,
             handler: async function (response: any) {
-                try {
-                    const verifyRes = await fetch('/api/razorpay/verify', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            razorpay_order_id: response.razorpay_order_id,
-                            razorpay_payment_id: response.razorpay_payment_id,
-                            razorpay_signature: response.razorpay_signature,
-                            orderDetails: {
-                                id: orderData.id,
-                                customer: formData.name.toUpperCase(),
-                                phone: formData.number,
-                                email: formData.mail,
-                                address: `${formData.address}, ${formData.city}, ${formData.state}`,
-                                items: cartItems.map(i => i.name),
-                                amount: totalPrice,
-                                date: new Date().toLocaleDateString(),
-                                status: 'Pending',
-                                pincode: pincode
-                            }
-                        })
-                    });
+                // [UPDATED] Since the Webhook handles the database now, the frontend simply cleans up!
+                setCartItems([]);
+                setIsCartOpen(false);
+                setIsProcessingPayment(false);
+                triggerToast("PAYMENT SUCCESSFUL. ORDER PLACED.");
 
-                    const verifyData = await verifyRes.json();
-
-                    if (verifyData.verified) {
-                        const ordersRes = await fetch('/api/orders');
-                        if (ordersRes.ok) {
-                            const freshOrders = await ordersRes.json();
-                            setOrders(freshOrders);
-                        }
-                        
-                        setCartItems([]);
-                        setIsCartOpen(false);
-                        triggerToast("SECURE PAYMENT VERIFIED. ORDER PLACED.");
-                    } else {
-                        triggerToast("SECURITY ALERT: Payment Signature Invalid.");
-                    }
-                } catch (err) {
-                    triggerToast("Verification Failed");
-                } finally {
-                    setIsProcessingPayment(false);
-                }
+                // Quietly refresh the admin orders list in the background
+                fetch('/api/orders')
+                    .then(res => res.json())
+                    .then(data => { if(Array.isArray(data)) setOrders(data); })
+                    .catch(err => console.error(err));
             },
             prefill: {
                 name: formData.name,
@@ -298,8 +274,6 @@ export default function Home() {
     const savedProds = localStorage.getItem('morph_prods');
     const savedCats = localStorage.getItem('morph_cats');
     const savedCart = localStorage.getItem('morph_cart');
-    
-    // [ADDON] Retrieve saved buyer address/details
     const savedBuyer = localStorage.getItem('morph_buyer_info'); 
     
     if (savedProds) setProducts(JSON.parse(savedProds));
@@ -307,7 +281,7 @@ export default function Home() {
     if (savedCats) setCategories(JSON.parse(savedCats));
     if (savedCart) setCartItems(JSON.parse(savedCart));
 
-    // [ADDON] Automatically load and fill form data if it exists
+    // Autofill Logic
     if (savedBuyer) {
         try {
             const parsed = JSON.parse(savedBuyer);
@@ -341,8 +315,6 @@ export default function Home() {
         localStorage.setItem('morph_prods', JSON.stringify(products)); 
         localStorage.setItem('morph_cats', JSON.stringify(categories)); 
         localStorage.setItem('morph_cart', JSON.stringify(cartItems));
-        
-        // [ADDON] Continuously save the form inputs to local web storage
         localStorage.setItem('morph_buyer_info', JSON.stringify({ formData, pincode }));
     } 
   }, [products, categories, cartItems, formData, pincode, isLoaded]);

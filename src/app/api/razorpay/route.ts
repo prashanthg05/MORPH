@@ -4,7 +4,8 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    const { amount } = await request.json();
+    // We now expect both amount and orderDetails from the frontend
+    const { amount, orderDetails } = await request.json();
 
     const key_id = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
     const key_secret = process.env.RAZORPAY_KEY_SECRET;
@@ -15,6 +16,7 @@ export async function POST(request: Request) {
 
     const basicAuth = btoa(`${key_id}:${key_secret}`);
 
+    // 1. Create order in Razorpay
     const response = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
       headers: {
@@ -35,10 +37,29 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Razorpay API Error' }, { status: 500 });
     }
 
-    // [UPDATED] Send the key_id back to the frontend to guarantee it exists
+    // 2. Pre-save the order to D1 Database as "Awaiting Payment"
+    if (orderDetails) {
+        const db = process.env.DB as any;
+        await db.prepare(
+            "INSERT INTO orders (id, customer, phone, email, address, items, amount, date, status, pincode, paymentId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        ).bind(
+            order.id, // We use the official Razorpay ID
+            orderDetails.customer, 
+            orderDetails.phone, 
+            orderDetails.email, 
+            orderDetails.address, 
+            JSON.stringify(orderDetails.items), 
+            amount, 
+            new Date().toLocaleDateString(), 
+            'Awaiting Payment', // Hidden from admin dashboard
+            orderDetails.pincode, 
+            'PENDING_GATEWAY'
+        ).run();
+    }
+
     return NextResponse.json({ ...order, key_id: key_id });
-  } catch (error) {
+  } catch (error: any) {
     console.error("API Error:", error);
-    return NextResponse.json({ error: 'Error creating order' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Error creating order' }, { status: 500 });
   }
 }
