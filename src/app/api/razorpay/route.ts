@@ -43,7 +43,7 @@ export async function POST(request: Request) {
         
         try {
             // [THE FIX] Use getCloudflareContext to grab the DB on the live server
-            const { env } = getCloudflareContext();
+            const { env } = getCloudflareContext() as any;
             db = env.DB;
         } catch (err) {
             // Fallback just in case you are testing locally in VS Code
