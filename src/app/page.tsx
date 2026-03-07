@@ -156,7 +156,7 @@ export default function Home() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (loginCreds.user === "Team@morph" && loginCreds.pass === "Nknle@28") {
+    if (loginCreds.user === "1" && loginCreds.pass === "1") {
         setView('admin'); setShowLogin(false); setLoginCreds({ user: '', pass: '' });
     } else triggerToast("Invalid Credentials");
   };
