@@ -9,4 +9,5 @@ compatibility_flags = ["nodejs_compat"]
 binding = "DB"
 database_name = "morph-db"
 # We will generate this ID in the Cloudflare Dashboard in the next step
+
 database_id = "f16a276f-a854-43f8-a7ad-e1eb875f3dc6"
