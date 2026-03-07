@@ -16,7 +16,9 @@ interface Product {
 }
 interface Order {
     id: string; customer: string; items: string[]; amount: number;
-    date: string; status: 'Pending' | 'Fulfilled'; pincode: string;
+    date: string; status: 'Pending' | 'Packed' | 'Shipped' | 'Fulfilled'; pincode: string;
+    phone?: string; email?: string; address?: string; city?: string; state?: string;
+    fullItems?: Product[];
 }
 interface CategoryData {
     name: string;
@@ -53,15 +55,19 @@ export default function Home() {
   const [cartItems, setCartItems] = useState<Product[]>([]);
   const [pincode, setPincode] = useState('');
   const [deliveryEst, setDeliveryEst] = useState('');
-  const [formData, setFormData] = useState({ name: '', number: '', mail: '', address: '', age: '' });
+  
+  // Updated Form Data to include city and state
+  const [formData, setFormData] = useState({ name: '', number: '', mail: '', address: '', city: '', state: '', age: '' });
   const [toast, setToast] = useState<string | null>(null);
-  const [monthFilter, setMonthFilter] = useState('All');
+  const [orderFilter, setOrderFilter] = useState<'Pending' | 'Completed'>('Pending');
 
   // --- 2. LOCAL STORAGE LOGIC ---
   useEffect(() => {
     const savedProds = localStorage.getItem('morph_prods');
     const savedCats = localStorage.getItem('morph_cats');
     const savedOrders = localStorage.getItem('morph_orders');
+    const savedCart = localStorage.getItem('morph_cart');
+    const savedUser = localStorage.getItem('morph_user');
 
     if (savedProds) setProducts(JSON.parse(savedProds));
     else setProducts([
@@ -70,6 +76,8 @@ export default function Home() {
     
     if (savedCats) setCategories(JSON.parse(savedCats));
     if (savedOrders) setOrders(JSON.parse(savedOrders));
+    if (savedCart) setCartItems(JSON.parse(savedCart));
+    if (savedUser) setFormData(JSON.parse(savedUser));
     
     setIsLoaded(true);
 
@@ -85,8 +93,10 @@ export default function Home() {
         localStorage.setItem('morph_prods', JSON.stringify(products));
         localStorage.setItem('morph_cats', JSON.stringify(categories));
         localStorage.setItem('morph_orders', JSON.stringify(orders));
+        localStorage.setItem('morph_cart', JSON.stringify(cartItems));
+        localStorage.setItem('morph_user', JSON.stringify(formData));
     }
-  }, [products, categories, orders, isLoaded]);
+  }, [products, categories, orders, cartItems, formData, isLoaded]);
 
   // --- 3. LOGIC ---
   const triggerToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
@@ -149,23 +159,26 @@ export default function Home() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (loginCreds.user === "a" && loginCreds.pass === "1") {
+    if (loginCreds.user === "A" && loginCreds.pass === "1") {
         setView('admin'); setShowLogin(false); setLoginCreds({ user: '', pass: '' });
     } else triggerToast("Invalid Credentials");
   };
 
+  // Upgraded Checkout Logic with Razorpay Edge Integration
   const handleCheckoutNow = async () => {
-    if (!formData.name || cartItems.length === 0) return triggerToast("Details missing");
+    if (!formData.name || !formData.number || !formData.mail || !formData.address || !formData.city || !formData.state || cartItems.length === 0) {
+        return triggerToast("Details missing");
+    }
 
     try {
-        // 1. Tell the backend to generate a secure Order ID
         const res = await fetch('/api/order', {
             method: 'POST',
             body: JSON.stringify({ amount: totalPrice })
         });
         const orderData = await res.json();
 
-        // 2. Open the Razorpay Window
+        if (orderData.error) throw new Error("Order init failed");
+
         const options = {
             key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
             amount: orderData.amount,
@@ -174,17 +187,23 @@ export default function Home() {
             description: "Artifact Haul",
             order_id: orderData.id,
             handler: function (response: any) {
-                // 3. SUCCESS: Save to local storage for the Admin page (temporary until you get a DB)
                 const newOrder: Order = {
                     id: response.razorpay_order_id,
                     customer: formData.name,
+                    phone: formData.number,
+                    email: formData.mail,
+                    address: formData.address,
+                    city: formData.city,
+                    state: formData.state,
                     items: cartItems.map(i => i.name),
+                    fullItems: cartItems,
                     amount: totalPrice,
-                    date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
-                    status: 'Fulfilled',
+                    date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                    status: 'Pending',
                     pincode: pincode
                 };
-                setOrders(prev => [newOrder, ...prev]);
+                
+                setOrders(prev => [newOrder, ...prev]); // Prepends so newest is always top
                 setCartItems([]);
                 setIsCartOpen(false);
                 triggerToast("Payment Successful!");
@@ -199,6 +218,11 @@ export default function Home() {
         triggerToast("Payment initialization failed. Check console.");
         console.error(error);
     }
+  };
+
+  const updateOrderStatus = (id: string, newStatus: Order['status']) => {
+    setOrders(orders.map(o => o.id === id ? { ...o, status: newStatus } : o));
+    triggerToast(`Status changed to ${newStatus}`);
   };
 
   const toggleStock = (id: number) => {
@@ -235,6 +259,10 @@ export default function Home() {
 
   const totalRevenue = orders.reduce((acc, order) => acc + order.amount, 0);
 
+  const displayOrders = useMemo(() => {
+    return orders.filter(o => orderFilter === 'Pending' ? ['Pending', 'Packed'].includes(o.status) : ['Shipped', 'Fulfilled'].includes(o.status));
+  }, [orders, orderFilter]);
+
   if (!isLoaded) return <div className="bg-black min-h-screen flex items-center justify-center text-[#6f01ff] font-black uppercase tracking-[2em]">Morphing...</div>;
 
   // --- 4. ADMIN VIEW (With Dashboard) ---
@@ -262,7 +290,7 @@ export default function Home() {
             <div className="bg-zinc-900 p-8 rounded-[2.5rem] border border-white/5">
                 <PackageSearch className="text-yellow-500 mb-2" size={20} />
                 <p className="text-[10px] uppercase opacity-40 font-bold tracking-widest">Pending</p>
-                <h3 className="text-3xl font-black">{orders.filter(o => o.status === 'Pending').length}</h3>
+                <h3 className="text-3xl font-black">{orders.filter(o => ['Pending', 'Packed'].includes(o.status)).length}</h3>
             </div>
             <div className="bg-zinc-900 p-8 rounded-[2.5rem] border border-white/5">
                 <BarChart3 className="text-green-500 mb-2" size={20} />
@@ -318,33 +346,70 @@ export default function Home() {
                            <button onClick={() => {setOrders([]); localStorage.removeItem('morph_orders');}} className="text-[9px] font-bold opacity-20 hover:opacity-100 uppercase">Clear All</button>
                         </div>
                     </div>
-                    <div className="overflow-x-auto">
+
+                    {/* Filter Tabs */}
+                    <div className="px-8 pt-6 flex gap-4">
+                        <button onClick={() => setOrderFilter('Pending')} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${orderFilter === 'Pending' ? 'bg-[#6f01ff] text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}>Pending / Packed</button>
+                        <button onClick={() => setOrderFilter('Completed')} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${orderFilter === 'Completed' ? 'bg-green-500 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}>Shipped</button>
+                    </div>
+
+                    <div className="overflow-x-auto mt-4">
                         <table className="w-full text-left text-xs">
                             <thead className="bg-white/5 uppercase text-[9px] font-black opacity-40">
                                 <tr className="border-b border-white/5">
-                                    <th className="p-6">ID</th>
-                                    <th className="p-6">Customer</th>
+                                    <th className="p-6">ID & Status</th>
+                                    <th className="p-6">Customer Info</th>
+                                    <th className="p-6">Items Purchased</th>
                                     <th className="p-6">Amount</th>
-                                    <th className="p-6">Items</th>
                                     <th className="p-6 text-right">Action</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
-                                {orders.map(o => (
+                                {displayOrders.map(o => (
                                     <tr key={o.id} className="hover:bg-white/[0.01]">
-                                        <td className="p-6 font-mono text-[#6f01ff] font-bold">{o.id}</td>
                                         <td className="p-6">
-                                            <p className="font-black uppercase italic">{o.customer}</p>
-                                            <p className="text-[9px] opacity-40">{o.date}</p>
+                                            <p className="font-mono text-[#6f01ff] font-bold mb-2">{o.id}</p>
+                                            <select 
+                                                value={o.status} 
+                                                onChange={(e) => updateOrderStatus(o.id, e.target.value as Order['status'])}
+                                                className={`bg-black border border-white/10 rounded-lg p-2 text-[10px] font-black uppercase outline-none cursor-pointer ${o.status === 'Shipped' ? 'text-green-400' : o.status === 'Packed' ? 'text-yellow-400' : 'text-white'}`}
+                                            >
+                                                <option value="Pending">Pending</option>
+                                                <option value="Packed">Packed</option>
+                                                <option value="Shipped">Shipped</option>
+                                            </select>
+                                        </td>
+                                        <td className="p-6">
+                                            <p className="font-black uppercase italic mb-1">{o.customer}</p>
+                                            <p className="text-[10px] text-[#6f01ff] font-bold mb-1">{o.email} • {o.phone}</p>
+                                            <p className="text-[9px] opacity-50 max-w-[200px] leading-relaxed">{o.address}, {o.city}, {o.state} - {o.pincode}</p>
+                                            <p className="text-[8px] opacity-30 mt-2">{o.date}</p>
+                                        </td>
+                                        <td className="p-6">
+                                            <span className="text-[10px] font-black uppercase opacity-60 mb-2 block">{o.items.length} items</span>
+                                            <div className="space-y-1">
+                                                {o.fullItems ? o.fullItems.map((item, i) => (
+                                                    <div key={i} className="text-[9px] text-white/60 flex items-center gap-2">
+                                                        <span className="w-1 h-1 bg-[#6f01ff] rounded-full"></span>
+                                                        <span className="truncate max-w-[150px]">{item.name}</span>
+                                                        <span className="opacity-50">({item.dimensions})</span>
+                                                    </div>
+                                                )) : (
+                                                    o.items.map((item, i) => (
+                                                        <div key={i} className="text-[9px] text-white/60 flex items-center gap-2">
+                                                            <span className="w-1 h-1 bg-[#6f01ff] rounded-full"></span>{item}
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="p-6 font-black">₹{o.amount.toFixed(2)}</td>
-                                        <td className="p-6"><span className="text-[10px] opacity-60">{o.items.length} items</span></td>
                                         <td className="p-6 text-right">
                                             <button onClick={()=>setOrders(orders.filter(ord=>ord.id!==o.id))} className="text-red-500/50 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
                                         </td>
                                     </tr>
                                 ))}
-                                {orders.length === 0 && (
+                                {displayOrders.length === 0 && (
                                     <tr><td colSpan={5} className="p-20 text-center opacity-20 font-black uppercase italic tracking-widest">Pipeline Empty</td></tr>
                                 )}
                             </tbody>
@@ -376,7 +441,6 @@ export default function Home() {
       </div>
     );
   }
-
   // --- 5. LANDING VIEW ---
   if (view === 'landing') {
     return (
@@ -464,14 +528,12 @@ export default function Home() {
               <h2 className="text-5xl md:text-6xl font-black italic uppercase text-white leading-tight">{selectedProduct.name}</h2>
               <p className="text-4xl font-black text-[#6f01ff] underline underline-offset-[12px] decoration-white/10">{selectedProduct.price}</p>
               
-              {/* DESCRIPTION BOX - STRICT HEIGHT RETAINED */}
               <div className="bg-[#6f01ff]/5 p-8 rounded-[3rem] border border-[#6f01ff]/20 text-[#e5c7f4] text-md leading-relaxed shadow-inner min-h-[120px]">
                 {selectedProduct.description}
               </div>
 
               <div className="flex items-center space-x-4 bg-white/5 p-6 rounded-2xl border border-white/10 text-xs font-black uppercase tracking-widest"><Maximize size={20} className="text-[#6f01ff]" />Dimension: {selectedProduct.dimensions}</div>
               
-              {/* REVIEWS CAROUSEL - STRICT LOGIC RETAINED */}
               <div className="border-t border-white/10 pt-10">
                 <p className="text-[11px] font-black text-[#6f01ff] uppercase tracking-[0.4em] mb-6">Verified Reports</p>
                 {selectedProduct.reviews.length > 0 ? (
@@ -512,9 +574,17 @@ export default function Home() {
                 <div key={idx} className="flex justify-between items-center bg-white/5 p-7 rounded-[2rem] border border-white/5 shadow-xl transition-all hover:border-[#6f01ff]/30"><div><span className="font-black italic text-md uppercase block text-white">{item.name}</span><span className="text-[10px] text-[#6f01ff] font-bold uppercase">{item.dimensions}</span></div><div className="flex items-center space-x-6"><span className="text-white font-black text-md">{item.price}</span><button onClick={() => removeFromCart(idx)} className="p-2 text-white/20 hover:text-red-500 transition-colors"><Trash2 size={20} /></button></div></div>
             ))}</div>
             <div className="space-y-5">
-              <input type="text" placeholder="NAME" className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, name: e.target.value})}/>
-              <input type="text" placeholder="PHONE" className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff]" onChange={(e)=>setFormData({...formData, number: e.target.value})}/>
-              <textarea placeholder="ADDRESS" rows={3} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all font-bold" onChange={(e)=>setFormData({...formData, address: e.target.value})}></textarea>
+              <input type="text" placeholder="NAME" value={formData.name} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, name: e.target.value})}/>
+              <input type="text" placeholder="PHONE" value={formData.number} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff]" onChange={(e)=>setFormData({...formData, number: e.target.value})}/>
+              <input type="email" placeholder="EMAIL" value={formData.mail} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, mail: e.target.value})}/>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <input type="text" placeholder="CITY" value={formData.city} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, city: e.target.value})}/>
+                <input type="text" placeholder="STATE" value={formData.state} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, state: e.target.value})}/>
+              </div>
+
+              <textarea placeholder="ADDRESS" rows={3} value={formData.address} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all font-bold" onChange={(e)=>setFormData({...formData, address: e.target.value})}></textarea>
+              
               <div className="bg-[#6f01ff]/5 border border-[#6f01ff]/20 p-8 rounded-[3rem] shadow-inner text-center">
                 <label className="text-[10px] font-black uppercase text-[#6f01ff] mb-4 block tracking-[0.3em]">Pincode Verification</label>
                 <input type="text" placeholder="6-DIGIT" maxLength={6} className="bg-black border border-white/10 rounded-2xl px-6 py-4 text-md w-full outline-none font-black text-[#6f01ff] tracking-[0.6em] text-center" onChange={(e) => handlePincodeChange(e.target.value)} />
