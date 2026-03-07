@@ -65,7 +65,7 @@ export default function Home() {
         const data = await res.json();
         if (data.products) setProducts(data.products);
         if (data.categories?.length > 0) setCategories(data.categories);
-        else setCategories([{ name: 'Stranger Things', banner: '/Strangerthings1.jpeg' }]); // Fallback
+        else setCategories([{ name: 'Stranger Things', banner: '/Strangerthings1.jpeg' }]); 
         if (data.orders) setOrders(data.orders);
       } catch (err) {
         console.error("Failed to connect to D1 Database:", err);
@@ -74,7 +74,6 @@ export default function Home() {
 
     fetchDatabase();
 
-    // Preserve User's local cart and form data auto-fill
     const savedCart = localStorage.getItem('morph_cart');
     const savedUser = localStorage.getItem('morph_user');
     if (savedCart) setCartItems(JSON.parse(savedCart));
@@ -122,7 +121,6 @@ export default function Home() {
     }
   };
 
-  // Upgraded to connect to D1
   const handleUploadProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     const createdProduct: Product = {
@@ -138,20 +136,32 @@ export default function Home() {
         reviews: []
     };
     
-    setProducts([createdProduct, ...products]); // Optimistic UI update
+    setProducts([createdProduct, ...products]); 
     setNewProd({ ...newProd, name: '', desc: '', size: '', price: '' });
     setLocalImgs([]);
     triggerToast("Artifact Deployed");
     
-    // Save to DB
     await fetch('/api/db', { method: 'POST', body: JSON.stringify({ action: 'CREATE_PRODUCT', payload: createdProduct }) });
   };
 
+  // RESTORED: Add Category Logic wired to DB
+  const handleAddCategory = async () => {
+    if (!newCatName || !newCatBanner) return triggerToast("Need Name & Banner");
+    const newCat = { name: newCatName, banner: newCatBanner };
+    setCategories([...categories, newCat]);
+    setNewCatName(''); 
+    setNewCatBanner(''); 
+    triggerToast("Series Created");
+    await fetch('/api/db', { method: 'POST', body: JSON.stringify({ action: 'CREATE_CATEGORY', payload: newCat }) });
+  };
+
+  // UPDATED: Delete Category Logic wired to DB
   const deleteCategory = async (catName: string) => {
     if (categories.length <= 1) return triggerToast("Must have 1 category");
     setCategories(categories.filter(c => c.name !== catName));
+    setProducts(products.filter(p => p.category !== catName));
     triggerToast(`${catName} Purged`);
-    // Note: Implementing DB deletion for categories is similar, omitting here to keep focused on core flow
+    await fetch('/api/db', { method: 'POST', body: JSON.stringify({ action: 'DELETE_CATEGORY', payload: { name: catName } }) });
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -161,7 +171,6 @@ export default function Home() {
     } else triggerToast("Invalid Credentials");
   };
 
-  // Upgraded to connect to D1
   const updateOrderStatus = async (id: string, newStatus: Order['status']) => {
     setOrders(orders.map(o => o.id === id ? { ...o, status: newStatus } : o));
     triggerToast(`Status changed to ${newStatus}`);
@@ -253,6 +262,7 @@ export default function Home() {
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
             <div className="lg:col-span-4 space-y-8">
+                {/* NEW ARTIFACT PANEL */}
                 <div className="bg-zinc-900 border border-white/5 p-8 rounded-[3rem] shadow-xl">
                     <h2 className="text-sm font-black uppercase italic mb-6 text-[#6f01ff]">New Artifact</h2>
                     <form onSubmit={handleUploadProduct} className="space-y-4">
@@ -273,8 +283,21 @@ export default function Home() {
                         <button type="submit" className="w-full bg-[#6f01ff] text-white py-4 rounded-2xl font-black uppercase italic text-xs tracking-widest shadow-lg">Deploy</button>
                     </form>
                 </div>
+
+                {/* COLLECTIONS PANEL - FULLY RESTORED */}
                 <div className="bg-zinc-900 border border-white/5 p-8 rounded-[3rem] shadow-xl">
                     <h2 className="text-sm font-black uppercase italic mb-6 text-red-500">Active Collections</h2>
+                    
+                    {/* RESTORED: Create Collection UI */}
+                    <div className="mb-6 space-y-3 pb-6 border-b border-white/10">
+                        <input type="text" placeholder="COLLECTION NAME" className="w-full bg-black border border-white/10 rounded-2xl py-3 px-4 text-xs font-bold outline-none" value={newCatName} onChange={(e)=>setNewCatName(e.target.value)} />
+                        <label className="flex items-center justify-center w-full h-12 border-2 border-white/5 border-dashed rounded-2xl cursor-pointer hover:bg-white/5 transition-all">
+                            <span className="text-[9px] font-bold opacity-30 uppercase">{newCatBanner ? 'Banner Uploaded' : 'Upload Banner'}</span>
+                            <input type="file" className="hidden" onChange={(e)=>handleFileChange(e, 'category')}/>
+                        </label>
+                        <button onClick={handleAddCategory} className="w-full bg-white text-black py-3 rounded-2xl font-black uppercase italic text-xs shadow-lg">Create</button>
+                    </div>
+
                     <div className="space-y-3">
                         {categories.map(cat => (
                             <div key={cat.name} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
@@ -351,7 +374,8 @@ export default function Home() {
         </div>
       </div>
     );
-  }// --- 5. CHECKOUT LOGIC (Database Integrated) ---
+  }
+  // --- 5. CHECKOUT LOGIC (Database Integrated) ---
   const handleCheckoutNow = async () => {
     if (!formData.name || !formData.number || !formData.mail || !formData.address || !formData.city || !formData.state || cartItems.length === 0) {
         return triggerToast("Details missing");
@@ -379,7 +403,7 @@ export default function Home() {
             fullItems: cartItems,
             amount: totalPrice,
             date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-            status: 'Pending', // We will temporarily set to pending for typing, but handle in DB
+            status: 'Pending', // Temporarily pending for local state
             pincode: pincode
         };
 
