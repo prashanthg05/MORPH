@@ -1,7 +1,28 @@
 import { NextResponse } from 'next/server';
-import crypto from 'crypto';
 
-// Required for Cloudflare Pages compatibility
+// Cloudflare demands this!
+export const runtime = 'edge';
+
+// Edge-native HMAC SHA-256 verifier
+async function verifyRazorpaySignature(body: string, signature: string, secret: string) {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', 
+    encoder.encode(secret), 
+    { name: 'HMAC', hash: 'SHA-256' }, 
+    false, 
+    ['sign']
+  );
+  
+  const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(body));
+  
+  // Convert buffer to hex string to match Razorpay's format
+  const expectedSignature = Array.from(new Uint8Array(signatureBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+    
+  return expectedSignature === signature;
+}
 
 export async function POST(req: Request) {
   try {
@@ -12,26 +33,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing signature" }, { status: 400 });
     }
 
-    // Verify the request actually came from Razorpay
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET!)
-      .update(body)
-      .digest('hex');
+    const isValid = await verifyRazorpaySignature(
+      body, 
+      signature, 
+      process.env.RAZORPAY_WEBHOOK_SECRET!
+    );
 
-    if (expectedSignature === signature) {
+    if (isValid) {
       const event = JSON.parse(body);
 
-      // This is the worst-case scenario check
       if (event.event === 'payment.captured') {
         const paymentData = event.payload.payment.entity;
         const orderId = paymentData.order_id;
 
-        // 🚨 CRITICAL DATABASE STEP 🚨
-        // Because a webhook cannot write to localStorage, you will eventually 
-        // put your database update logic right here.
-        // Example: await database.updateOrder(orderId, 'Fulfilled');
-
-        console.log("Payment captured securely in background for:", orderId);
+        // 🚨 DATABASE UPDATE GOES HERE EVENTUALLY 🚨
+        console.log("Payment captured securely in Edge background for:", orderId);
       }
 
       return NextResponse.json({ status: 'ok' });
@@ -41,5 +57,4 @@ export async function POST(req: Request) {
   } catch (error) {
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
   }
-
 }

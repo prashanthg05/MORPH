@@ -1,27 +1,35 @@
 import { NextResponse } from 'next/server';
-import Razorpay from 'razorpay';
+
+// Cloudflare demands this!
+export const runtime = 'edge';
 
 export async function POST(request: Request) {
   try {
-    // Moved inside the function so it doesn't crash the Cloudflare build
-    const razorpay = new Razorpay({
-      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-      key_secret: process.env.RAZORPAY_KEY_SECRET!,
-    });
-
     const { amount } = await request.json();
 
-    const options = {
-      amount: amount * 100, // Amount in paisa
-      currency: "INR",
-      receipt: "receipt_" + Math.random().toString(36).substring(7),
-    };
+    // Use pure Edge fetch instead of the Node.js Razorpay library
+    const res = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Basic ' + btoa(`${process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`)
+      },
+      body: JSON.stringify({
+        amount: amount * 100, // Amount in paisa
+        currency: "INR",
+        receipt: "receipt_" + Math.random().toString(36).substring(7),
+      })
+    });
 
-    const order = await razorpay.orders.create(options);
+    const order = await res.json();
+
+    if (!res.ok) {
+        return NextResponse.json({ error: order }, { status: res.status });
+    }
 
     return NextResponse.json(order);
   } catch (error) {
-    console.error("Razorpay Error:", error);
+    console.error("Order Creation Error:", error);
     return NextResponse.json({ error: "Error creating order" }, { status: 500 });
   }
 }
