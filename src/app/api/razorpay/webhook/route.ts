@@ -45,7 +45,7 @@ export async function POST(request: Request) {
         let db: any;
         try {
             // [THE FIX] Use getCloudflareContext
-            const { env } = getCloudflareContext();
+            const { env } = getCloudflareContext() as any;
             db = env.DB;
         } catch (err) {
             db = process.env.DB;
