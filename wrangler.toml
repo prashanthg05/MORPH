@@ -8,6 +8,7 @@ directory = ".open-next/assets"
 binding = "ASSETS"
 
 [[d1_databases]]
-binding = "the_morphstudios_db"
-database_name = "the-morphstudios-db"
-database_id = "719d9b51-1cc4-413d-ace0-f62ca6312e69"
+binding = "DB"
+database_name = "morph_db"
+
+database_id = "abf78b36-5fb1-4bec-a4d6-05acf69d4ef8"
