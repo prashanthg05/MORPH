@@ -40,9 +40,9 @@ export default function Home() {
   
   // Architect State
   const [newProd, setNewProd] = useState({ name: '', desc: '', size: '', price: '', category: 'Stranger Things' });
-  const [localImgs, setLocalImgs] = useState<string[]>([]);
+  const [imgInput, setImgInput] = useState(''); // NEW: Replaces complex file uploads
   const [newCatName, setNewCatName] = useState('');
-  const [newCatBanner, setNewCatBanner] = useState('');
+  const [newCatBanner, setNewCatBanner] = useState(''); // NEW: Just a text string now
 
   // UI States
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -62,13 +62,19 @@ export default function Home() {
     const fetchDatabase = async () => {
       try {
         const res = await fetch('/api/db', { method: 'POST', body: JSON.stringify({ action: 'FETCH_ALL' }) });
+        if (!res.ok) throw new Error("Cloudflare DB connection rejected.");
+        
         const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
         if (data.products) setProducts(data.products);
         if (data.categories?.length > 0) setCategories(data.categories);
         else setCategories([{ name: 'Stranger Things', banner: '/Strangerthings1.jpeg' }]); 
         if (data.orders) setOrders(data.orders);
-      } catch (err) {
-        console.error("Failed to connect to D1 Database:", err);
+      } catch (err: any) {
+        console.error("Database Error:", err);
+        setToast(`DB Sync Error: ${err.message}`);
+        setTimeout(() => setToast(null), 4000);
       }
     };
 
@@ -107,25 +113,12 @@ export default function Home() {
     } else setDeliveryEst('');
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, target: 'product' | 'category') => {
-    const files = e.target.files;
-    if (files) {
-      Array.from(files).forEach(file => {
-        // Since images are in the public folder, we just save the file path!
-        // Example: selecting "new-banner.jpg" becomes "/new-banner.jpg"
-        const imagePath = `/${file.name}`;
-        
-        if (target === 'product') {
-            setLocalImgs(prev => [...prev, imagePath].slice(0, 4));
-        } else {
-            setNewCatBanner(imagePath);
-        }
-      });
-    }
-  };
-
   const handleUploadProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Process comma-separated image paths
+    const parsedImgs = imgInput ? imgInput.split(',').map(s => s.trim()).filter(Boolean) : ['/Strangerthings1.jpeg'];
+
     const createdProduct: Product = {
         id: Date.now(),
         name: newProd.name.toUpperCase(),
@@ -134,31 +127,39 @@ export default function Home() {
         price: `INR ${parseFloat(newProd.price).toFixed(2)}`,
         category: newProd.category,
         tag: 'NEW DROP',
-        imgs: localImgs.length > 0 ? localImgs : ['/Strangerthings1.jpeg'],
+        imgs: parsedImgs,
         stock: 'AVAILABLE',
         reviews: []
     };
     
     setProducts([createdProduct, ...products]); 
     setNewProd({ ...newProd, name: '', desc: '', size: '', price: '' });
-    setLocalImgs([]);
+    setImgInput('');
     triggerToast("Artifact Deployed");
     
-    await fetch('/api/db', { method: 'POST', body: JSON.stringify({ action: 'CREATE_PRODUCT', payload: createdProduct }) });
+    try {
+      const res = await fetch('/api/db', { method: 'POST', body: JSON.stringify({ action: 'CREATE_PRODUCT', payload: createdProduct }) });
+      if (!res.ok) throw new Error("Deploy failed");
+    } catch (err: any) {
+      triggerToast("Error saving to database!");
+    }
   };
 
-  // RESTORED: Add Category Logic wired to DB
   const handleAddCategory = async () => {
-    if (!newCatName || !newCatBanner) return triggerToast("Need Name & Banner");
+    if (!newCatName || !newCatBanner) return triggerToast("Need Name & Banner Path");
     const newCat = { name: newCatName, banner: newCatBanner };
     setCategories([...categories, newCat]);
     setNewCatName(''); 
     setNewCatBanner(''); 
     triggerToast("Series Created");
-    await fetch('/api/db', { method: 'POST', body: JSON.stringify({ action: 'CREATE_CATEGORY', payload: newCat }) });
+    
+    try {
+      await fetch('/api/db', { method: 'POST', body: JSON.stringify({ action: 'CREATE_CATEGORY', payload: newCat }) });
+    } catch (err) {
+      triggerToast("Error saving to database!");
+    }
   };
 
-  // UPDATED: Delete Category Logic wired to DB
   const deleteCategory = async (catName: string) => {
     if (categories.length <= 1) return triggerToast("Must have 1 category");
     setCategories(categories.filter(c => c.name !== catName));
@@ -278,26 +279,20 @@ export default function Home() {
                             <input type="text" placeholder="SIZE" className="bg-black border border-white/10 rounded-2xl py-4 px-6 text-xs font-bold" value={newProd.size} onChange={(e)=>setNewProd({...newProd, size: e.target.value})}/>
                             <input type="number" placeholder="PRICE" className="bg-black border border-white/10 rounded-2xl py-4 px-6 text-xs font-bold" value={newProd.price} onChange={(e)=>setNewProd({...newProd, price: e.target.value})}/>
                         </div>
-                        <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-white/5 border-dashed rounded-2xl cursor-pointer hover:bg-white/5 transition-all">
-                            <ImageIcon size={20} className="opacity-20 mb-1"/>
-                            <p className="text-[9px] font-bold opacity-30 uppercase">Images ({localImgs.length}/4)</p>
-                            <input type="file" multiple className="hidden" onChange={(e)=>handleFileChange(e, 'product')}/>
-                        </label>
+                        {/* CHANGED TO TEXT INPUT FOR MULTIPLE IMAGES */}
+                        <input type="text" placeholder="IMAGE PATHS (e.g. /img1.jpg, /img2.jpg)" className="w-full bg-black border border-white/10 rounded-2xl py-4 px-6 text-xs font-bold outline-none" value={imgInput} onChange={(e)=>setImgInput(e.target.value)}/>
                         <button type="submit" className="w-full bg-[#6f01ff] text-white py-4 rounded-2xl font-black uppercase italic text-xs tracking-widest shadow-lg">Deploy</button>
                     </form>
                 </div>
 
-                {/* COLLECTIONS PANEL - FULLY RESTORED */}
+                {/* COLLECTIONS PANEL */}
                 <div className="bg-zinc-900 border border-white/5 p-8 rounded-[3rem] shadow-xl">
                     <h2 className="text-sm font-black uppercase italic mb-6 text-red-500">Active Collections</h2>
                     
-                    {/* RESTORED: Create Collection UI */}
                     <div className="mb-6 space-y-3 pb-6 border-b border-white/10">
                         <input type="text" placeholder="COLLECTION NAME" className="w-full bg-black border border-white/10 rounded-2xl py-3 px-4 text-xs font-bold outline-none" value={newCatName} onChange={(e)=>setNewCatName(e.target.value)} />
-                        <label className="flex items-center justify-center w-full h-12 border-2 border-white/5 border-dashed rounded-2xl cursor-pointer hover:bg-white/5 transition-all">
-                            <span className="text-[9px] font-bold opacity-30 uppercase">{newCatBanner ? 'Banner Uploaded' : 'Upload Banner'}</span>
-                            <input type="file" className="hidden" onChange={(e)=>handleFileChange(e, 'category')}/>
-                        </label>
+                        {/* CHANGED TO TEXT INPUT FOR BANNER */}
+                        <input type="text" placeholder="BANNER PATH (e.g. /banner.jpg)" className="w-full bg-black border border-white/10 rounded-2xl py-3 px-4 text-xs font-bold outline-none" value={newCatBanner} onChange={(e)=>setNewCatBanner(e.target.value)} />
                         <button onClick={handleAddCategory} className="w-full bg-white text-black py-3 rounded-2xl font-black uppercase italic text-xs shadow-lg">Create</button>
                     </div>
 
@@ -469,7 +464,8 @@ export default function Home() {
         </div>
 
         <footer className="mt-40 p-24 text-center relative z-[200]">
-            <div onClick={() => setShowLogin(true)} className="inline-block cursor-pointer group">
+            {/* FIXED: Removed the onClick function. Now it's just decorative text! */}
+            <div className="inline-block group cursor-default">
                 <p className="text-[11px] font-black tracking-[1.5em] uppercase text-white/10 group-hover:text-[#6f01ff] transition-colors">Morph Studio × 2026</p>
                 <div className="h-px w-0 group-hover:w-full bg-[#6f01ff] transition-all duration-700 mx-auto mt-4 shadow-[0_0_10px_#6f01ff]" />
             </div>
