@@ -111,12 +111,15 @@ export default function Home() {
     const files = e.target.files;
     if (files) {
       Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          if (target === 'product') setLocalImgs(prev => [...prev, reader.result as string].slice(0, 4));
-          else setNewCatBanner(reader.result as string);
-        };
-        reader.readAsDataURL(file);
+        // Since images are in the public folder, we just save the file path!
+        // Example: selecting "new-banner.jpg" becomes "/new-banner.jpg"
+        const imagePath = `/${file.name}`;
+        
+        if (target === 'product') {
+            setLocalImgs(prev => [...prev, imagePath].slice(0, 4));
+        } else {
+            setNewCatBanner(imagePath);
+        }
       });
     }
   };
