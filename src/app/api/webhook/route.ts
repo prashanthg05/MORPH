@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
 // Required for Cloudflare Pages compatibility
-export const runtime = 'edge'; 
 
 export async function POST(req: Request) {
   try {
@@ -42,4 +41,5 @@ export async function POST(req: Request) {
   } catch (error) {
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
   }
+
 }
