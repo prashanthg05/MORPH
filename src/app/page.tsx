@@ -16,7 +16,7 @@ interface Product {
 }
 interface Order {
     id: string; customer: string; items: string[]; amount: number;
-    date: string; status: 'Pending' | 'Packed' | 'Shipped' | 'Fulfilled'; pincode: string;
+    date: string; status: 'Pending' | 'Packed' | 'Shipped' | 'Fulfilled' | 'Awaiting Payment'; pincode: string;
     phone?: string; email?: string; address?: string; city?: string; state?: string;
     fullItems?: Product[];
 }
@@ -34,11 +34,7 @@ export default function Home() {
   const [loginCreds, setLoginCreds] = useState({ user: '', pass: '' });
   
   const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<CategoryData[]>([
-    { name: 'Stranger Things', banner: '/Strangerthings1.jpeg' },
-    { name: 'Breaking Bad', banner: '/BrBa3.jpeg' },
-    { name: 'The Office', banner: '/Theoffice2.jpeg' }
-  ]);
+  const [categories, setCategories] = useState<CategoryData[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   
   // Architect State
@@ -56,31 +52,46 @@ export default function Home() {
   const [pincode, setPincode] = useState('');
   const [deliveryEst, setDeliveryEst] = useState('');
   
-  // Updated Form Data to include city and state
+  // Updated Form Data
   const [formData, setFormData] = useState({ name: '', number: '', mail: '', address: '', city: '', state: '', age: '' });
   const [toast, setToast] = useState<string | null>(null);
   const [orderFilter, setOrderFilter] = useState<'Pending' | 'Completed'>('Pending');
 
-  // --- 2. LOCAL STORAGE LOGIC ---
+  // --- DATABASE HELPER ---
+  const syncAdmin = async (action: string, payload: any = {}) => {
+    try { await fetch('/api/admin', { method: 'POST', body: JSON.stringify({ action, payload }) }); } 
+    catch (e) { console.error("Database sync failed", e); }
+  };
+
+  // --- 2. LOADING LOGIC ---
   useEffect(() => {
-    const savedProds = localStorage.getItem('morph_prods');
-    const savedCats = localStorage.getItem('morph_cats');
-    const savedOrders = localStorage.getItem('morph_orders');
-    const savedCart = localStorage.getItem('morph_cart');
-    const savedUser = localStorage.getItem('morph_user');
+    const loadData = async () => {
+      // User specific data stays in local storage
+      const savedCart = localStorage.getItem('morph_cart');
+      const savedUser = localStorage.getItem('morph_user');
+      if (savedCart) setCartItems(JSON.parse(savedCart));
+      if (savedUser) setFormData(JSON.parse(savedUser));
 
-    if (savedProds) setProducts(JSON.parse(savedProds));
-    else setProducts([
-        { id: 1, name: 'VECNA BUST', price: 'INR 449.00', tag: 'TOP SELLING', category: 'Stranger Things', imgs: ['/Strangerthings1.jpeg'], dimensions: '14.2cm H', stock: 'AVAILABLE', description: 'Terrifyingly detailed bust of the Curse of Hawkins.', reviews: [{user: "Arjun_X", rating: 5, comment: "Insane detail on the tentacles!"}] }
-    ]);
-    
-    if (savedCats) setCategories(JSON.parse(savedCats));
-    if (savedOrders) setOrders(JSON.parse(savedOrders));
-    if (savedCart) setCartItems(JSON.parse(savedCart));
-    if (savedUser) setFormData(JSON.parse(savedUser));
-    
-    setIsLoaded(true);
+      // Admin data fetches from Turso
+      try {
+        const res = await fetch('/api/admin');
+        const dbData = await res.json();
+        if (dbData.products && dbData.products.length > 0) setProducts(dbData.products);
+        else setProducts([{ id: 1, name: 'VECNA BUST', price: 'INR 449.00', tag: 'TOP SELLING', category: 'Stranger Things', imgs: ['/Strangerthings1.jpeg'], dimensions: '14.2cm H', stock: 'AVAILABLE', description: 'Terrifyingly detailed bust of the Curse of Hawkins.', reviews: [{user: "Arjun_X", rating: 5, comment: "Insane detail on the tentacles!"}] }]);
+        
+        if (dbData.categories && dbData.categories.length > 0) setCategories(dbData.categories);
+        else setCategories([{ name: 'Stranger Things', banner: '/Strangerthings1.jpeg' }, { name: 'Breaking Bad', banner: '/BrBa3.jpeg' }, { name: 'The Office', banner: '/Theoffice2.jpeg' }]);
+        
+        if (dbData.orders) setOrders(dbData.orders);
+      } catch (e) {
+        console.error("Failed to fetch initial database state");
+      }
+      setIsLoaded(true);
+    };
 
+    loadData();
+
+    // STRICT SHIFT+A LOCK
     const handleKeyDown = (e: KeyboardEvent) => {
         if (e.shiftKey && e.key === 'A') setShowLogin(true);
     };
@@ -90,13 +101,11 @@ export default function Home() {
 
   useEffect(() => {
     if (isLoaded) {
-        localStorage.setItem('morph_prods', JSON.stringify(products));
-        localStorage.setItem('morph_cats', JSON.stringify(categories));
-        localStorage.setItem('morph_orders', JSON.stringify(orders));
         localStorage.setItem('morph_cart', JSON.stringify(cartItems));
         localStorage.setItem('morph_user', JSON.stringify(formData));
+        // Products, Categories, and Orders are now managed by the API, so we don't save them to local storage anymore.
     }
-  }, [products, categories, orders, cartItems, formData, isLoaded]);
+  }, [cartItems, formData, isLoaded]);
 
   // --- 3. LOGIC ---
   const triggerToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
@@ -124,7 +133,7 @@ export default function Home() {
     }
   };
 
-  const handleUploadProduct = (e: React.FormEvent) => {
+  const handleUploadProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     const createdProduct: Product = {
         id: Date.now(),
@@ -141,19 +150,24 @@ export default function Home() {
     setProducts([createdProduct, ...products]);
     setNewProd({ ...newProd, name: '', desc: '', size: '', price: '' });
     setLocalImgs([]);
+    await syncAdmin('ADD_PRODUCT', createdProduct);
     triggerToast("Artifact Deployed");
   };
 
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     if (!newCatName || !newCatBanner) return triggerToast("Need Name & Banner");
-    setCategories([...categories, { name: newCatName, banner: newCatBanner }]);
-    setNewCatName(''); setNewCatBanner(''); triggerToast("Series Created");
+    const newCat = { name: newCatName, banner: newCatBanner };
+    setCategories([...categories, newCat]);
+    setNewCatName(''); setNewCatBanner(''); 
+    await syncAdmin('ADD_CATEGORY', newCat);
+    triggerToast("Series Created");
   };
 
-  const deleteCategory = (catName: string) => {
+  const deleteCategory = async (catName: string) => {
     if (categories.length <= 1) return triggerToast("Must have 1 category");
     setCategories(categories.filter(c => c.name !== catName));
     setProducts(products.filter(p => p.category !== catName));
+    await syncAdmin('DELETE_CATEGORY', { name: catName });
     triggerToast(`${catName} Purged`);
   };
 
@@ -164,16 +178,18 @@ export default function Home() {
     } else triggerToast("Invalid Credentials");
   };
 
-  // Upgraded Checkout Logic with Razorpay Edge Integration
+  // Upgraded Checkout Logic - Solves the Worst-Case Scenario
   const handleCheckoutNow = async () => {
-    if (!formData.name || !formData.number || !formData.mail || !formData.address || !formData.city || !formData.state || cartItems.length === 0) {
-        return triggerToast("Details missing");
-    }
-
     try {
+        // Send full customer data to create the "Awaiting Payment" database entry first
         const res = await fetch('/api/order', {
             method: 'POST',
-            body: JSON.stringify({ amount: totalPrice })
+            body: JSON.stringify({ 
+              amount: totalPrice,
+              customer: formData.name, phone: formData.number, email: formData.mail,
+              address: formData.address, city: formData.city, state: formData.state, pincode: pincode,
+              items: cartItems.map(i => i.name), fullItems: cartItems
+            })
         });
         const orderData = await res.json();
 
@@ -186,26 +202,21 @@ export default function Home() {
             name: "Morph Studio",
             description: "Artifact Haul",
             order_id: orderData.id,
-            handler: function (response: any) {
+            handler: async function (response: any) {
+                // Payment was successful. Webhook will handle DB background update, 
+                // but we update UI state and trigger a quick DB sync just to be safe.
                 const newOrder: Order = {
-                    id: response.razorpay_order_id,
-                    customer: formData.name,
-                    phone: formData.number,
-                    email: formData.mail,
-                    address: formData.address,
-                    city: formData.city,
-                    state: formData.state,
-                    items: cartItems.map(i => i.name),
-                    fullItems: cartItems,
-                    amount: totalPrice,
+                    id: response.razorpay_order_id, customer: formData.name, phone: formData.number,
+                    email: formData.mail, address: formData.address, city: formData.city, state: formData.state,
+                    items: cartItems.map(i => i.name), fullItems: cartItems, amount: totalPrice,
                     date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-                    status: 'Pending',
-                    pincode: pincode
+                    status: 'Pending', pincode: pincode
                 };
                 
-                setOrders(prev => [newOrder, ...prev]); // Prepends so newest is always top
+                setOrders(prev => [newOrder, ...prev.filter(o => o.id !== orderData.id)]); 
                 setCartItems([]);
                 setIsCartOpen(false);
+                await syncAdmin('UPDATE_ORDER_STATUS', { id: response.razorpay_order_id, status: 'Pending' });
                 triggerToast("Payment Successful!");
             },
             theme: { color: "#6f01ff" }
@@ -220,18 +231,34 @@ export default function Home() {
     }
   };
 
-  const updateOrderStatus = (id: string, newStatus: Order['status']) => {
+  const updateOrderStatus = async (id: string, newStatus: Order['status']) => {
     setOrders(orders.map(o => o.id === id ? { ...o, status: newStatus } : o));
+    await syncAdmin('UPDATE_ORDER_STATUS', { id, status: newStatus });
     triggerToast(`Status changed to ${newStatus}`);
   };
 
-  const toggleStock = (id: number) => {
-    setProducts(products.map(p => p.id === id ? { ...p, stock: p.stock === 'AVAILABLE' ? 'OUT OF STOCK' : 'AVAILABLE' } : p));
+  const toggleStock = async (id: number) => {
+    const product = products.find(p => p.id === id);
+    if (!product) return;
+    const newStock = product.stock === 'AVAILABLE' ? 'OUT OF STOCK' : 'AVAILABLE';
+    setProducts(products.map(p => p.id === id ? { ...p, stock: newStock } : p));
+    await syncAdmin('TOGGLE_STOCK', { id, stock: newStock });
   };
 
-  const deleteProduct = (id: number) => {
+  const deleteProduct = async (id: number) => {
     setProducts(products.filter(p => p.id !== id));
+    await syncAdmin('DELETE_PRODUCT', { id });
     triggerToast("Artifact Deleted");
+  };
+  
+  const clearAllOrders = async () => {
+    setOrders([]);
+    await syncAdmin('CLEAR_ORDERS');
+  };
+
+  const deleteOrder = async (id: string) => {
+    setOrders(orders.filter(ord => ord.id !== id));
+    await syncAdmin('DELETE_ORDER', { id });
   };
 
   const addToCart = (product: Product) => {
@@ -260,11 +287,22 @@ export default function Home() {
   const totalRevenue = orders.reduce((acc, order) => acc + order.amount, 0);
 
   const displayOrders = useMemo(() => {
-    return orders.filter(o => orderFilter === 'Pending' ? ['Pending', 'Packed'].includes(o.status) : ['Shipped', 'Fulfilled'].includes(o.status));
+    return orders.filter(o => orderFilter === 'Pending' ? ['Pending', 'Packed', 'Awaiting Payment'].includes(o.status) : ['Shipped', 'Fulfilled'].includes(o.status));
   }, [orders, orderFilter]);
 
-  if (!isLoaded) return <div className="bg-black min-h-screen flex items-center justify-center text-[#6f01ff] font-black uppercase tracking-[2em]">Morphing...</div>;
+  // Validation Check for Checkout Button Visibility
+  const allFieldsFilled = Boolean(
+    formData.name.trim() && 
+    formData.number.trim() && 
+    formData.mail.trim() && 
+    formData.address.trim() && 
+    formData.city.trim() && 
+    formData.state.trim() && 
+    pincode.length === 6 && 
+    cartItems.length > 0
+  );
 
+  if (!isLoaded) return <div className="bg-black min-h-screen flex items-center justify-center text-[#6f01ff] font-black uppercase tracking-[2em]">Morphing...</div>;
   // --- 4. ADMIN VIEW (With Dashboard) ---
   if (view === 'admin') {
     return (
@@ -290,7 +328,7 @@ export default function Home() {
             <div className="bg-zinc-900 p-8 rounded-[2.5rem] border border-white/5">
                 <PackageSearch className="text-yellow-500 mb-2" size={20} />
                 <p className="text-[10px] uppercase opacity-40 font-bold tracking-widest">Pending</p>
-                <h3 className="text-3xl font-black">{orders.filter(o => ['Pending', 'Packed'].includes(o.status)).length}</h3>
+                <h3 className="text-3xl font-black">{orders.filter(o => ['Pending', 'Packed', 'Awaiting Payment'].includes(o.status)).length}</h3>
             </div>
             <div className="bg-zinc-900 p-8 rounded-[2.5rem] border border-white/5">
                 <BarChart3 className="text-green-500 mb-2" size={20} />
@@ -343,7 +381,7 @@ export default function Home() {
                     <div className="p-8 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
                         <h2 className="text-sm font-black uppercase italic tracking-widest">Order Pipeline</h2>
                         <div className="flex gap-2">
-                           <button onClick={() => {setOrders([]); localStorage.removeItem('morph_orders');}} className="text-[9px] font-bold opacity-20 hover:opacity-100 uppercase">Clear All</button>
+                           <button onClick={clearAllOrders} className="text-[9px] font-bold opacity-20 hover:opacity-100 uppercase">Clear All</button>
                         </div>
                     </div>
 
@@ -372,8 +410,9 @@ export default function Home() {
                                             <select 
                                                 value={o.status} 
                                                 onChange={(e) => updateOrderStatus(o.id, e.target.value as Order['status'])}
-                                                className={`bg-black border border-white/10 rounded-lg p-2 text-[10px] font-black uppercase outline-none cursor-pointer ${o.status === 'Shipped' ? 'text-green-400' : o.status === 'Packed' ? 'text-yellow-400' : 'text-white'}`}
+                                                className={`bg-black border border-white/10 rounded-lg p-2 text-[10px] font-black uppercase outline-none cursor-pointer ${o.status === 'Shipped' ? 'text-green-400' : o.status === 'Packed' ? 'text-yellow-400' : o.status === 'Awaiting Payment' ? 'text-red-400' : 'text-white'}`}
                                             >
+                                                <option value="Awaiting Payment">Awaiting Payment</option>
                                                 <option value="Pending">Pending</option>
                                                 <option value="Packed">Packed</option>
                                                 <option value="Shipped">Shipped</option>
@@ -405,7 +444,7 @@ export default function Home() {
                                         </td>
                                         <td className="p-6 font-black">₹{o.amount.toFixed(2)}</td>
                                         <td className="p-6 text-right">
-                                            <button onClick={()=>setOrders(orders.filter(ord=>ord.id!==o.id))} className="text-red-500/50 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                                            <button onClick={()=>deleteOrder(o.id)} className="text-red-500/50 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
                                         </td>
                                     </tr>
                                 ))}
@@ -468,7 +507,8 @@ export default function Home() {
         </div>
 
         <footer className="mt-40 p-24 text-center relative z-[200]">
-            <div onClick={() => setShowLogin(true)} className="inline-block cursor-pointer group">
+            {/* The backdoor click event has been securely removed here */}
+            <div className="inline-block group">
                 <p className="text-[11px] font-black tracking-[1.5em] uppercase text-white/10 group-hover:text-[#6f01ff] transition-colors">Morph Studio × 2026</p>
                 <div className="h-px w-0 group-hover:w-full bg-[#6f01ff] transition-all duration-700 mx-auto mt-4 shadow-[0_0_10px_#6f01ff]" />
             </div>
@@ -592,7 +632,14 @@ export default function Home() {
               </div>
               <div className="pt-10 border-t border-white/10 text-center">
                 <div className="flex justify-between text-2xl font-black mb-10 italic uppercase tracking-tighter"><span>GRAND TOTAL</span><span className="text-[#6f01ff] font-black italic underline underline-offset-8 decoration-white/10">INR {totalPrice.toFixed(2)}</span></div>
-                <button onClick={handleCheckoutNow} disabled={cartItems.length === 0} className="w-full bg-white text-black py-8 rounded-full font-black text-2xl hover:bg-[#6f01ff] hover:text-white transition-all shadow-xl disabled:opacity-20 uppercase italic flex items-center justify-center gap-4">Checkout Now</button>
+                
+                {/* CHECKOUT BUTTON NOW ONLY APPEARS WHEN ALL FIELDS ARE FILLED */}
+                {allFieldsFilled ? (
+                    <button onClick={handleCheckoutNow} className="w-full bg-white text-black py-8 rounded-full font-black text-2xl hover:bg-[#6f01ff] hover:text-white transition-all shadow-xl uppercase italic flex items-center justify-center gap-4">Checkout Now</button>
+                ) : (
+                    <div className="w-full bg-white/5 border border-white/10 text-white/40 py-8 rounded-full font-black text-sm uppercase italic tracking-widest cursor-not-allowed">Complete Form To Proceed</div>
+                )}
+                
               </div>
             </div>
           </div>

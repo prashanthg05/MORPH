@@ -1,9 +1,9 @@
+// src/app/api/webhook/route.ts
 import { NextResponse } from 'next/server';
+import { turso } from '@/lib/turso';
 
-// Cloudflare demands this!
 export const runtime = 'edge';
 
-// Edge-native HMAC SHA-256 verifier
 async function verifyRazorpaySignature(body: string, signature: string, secret: string) {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
@@ -16,7 +16,6 @@ async function verifyRazorpaySignature(body: string, signature: string, secret: 
   
   const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(body));
   
-  // Convert buffer to hex string to match Razorpay's format
   const expectedSignature = Array.from(new Uint8Array(signatureBuffer))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
@@ -46,8 +45,13 @@ export async function POST(req: Request) {
         const paymentData = event.payload.payment.entity;
         const orderId = paymentData.order_id;
 
-        // 🚨 DATABASE UPDATE GOES HERE EVENTUALLY 🚨
-        console.log("Payment captured securely in Edge background for:", orderId);
+        // Update the order in Turso from "Awaiting Payment" to "Pending"
+        await turso.execute({
+            sql: 'UPDATE orders SET status = ? WHERE id = ?',
+            args: ['Pending', orderId]
+        });
+
+        console.log("Payment captured securely! Turso updated order:", orderId);
       }
 
       return NextResponse.json({ status: 'ok' });
@@ -55,6 +59,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
   } catch (error) {
+    console.error("Webhook Error:", error);
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
   }
 }
