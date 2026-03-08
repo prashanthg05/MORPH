@@ -1,3 +1,4 @@
+// src/app/api/admin/route.ts
 import { NextResponse } from 'next/server';
 import { turso } from '@/lib/turso';
 
