@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export const runtime = 'edge';
 
@@ -22,10 +21,7 @@ export async function POST(req: Request) {
       const event = JSON.parse(body);
       if (event.event === 'payment.captured') {
         const orderId = event.payload.payment.entity.order_id;
-        
-        // FIX: Use RequestContext for D1 access
-        const ctx = getRequestContext();
-        const db = ctx.env.DB;
+        const db = (process.env as any).DB || (req as any).context?.env?.DB;
 
         if (db) {
             await db.prepare("UPDATE Orders SET status = 'Fulfilled' WHERE id = ?").bind(orderId).run();
