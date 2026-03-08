@@ -58,8 +58,19 @@ export default function Home() {
 
   // --- DATABASE HELPER ---
   const syncAdmin = async (action: string, payload: any = {}) => {
-    try { await fetch('/api/admin', { method: 'POST', body: JSON.stringify({ action, payload }) }); } 
-    catch (e) { console.error("Database sync failed", e); }
+    try { 
+      const res = await fetch('/api/admin', { 
+        method: 'POST', 
+        // 🚨 THE FIX: This tells Cloudflare/Next.js to actually read the data!
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, payload }) 
+      }); 
+      if (!res.ok) {
+          const errorMsg = await res.text();
+          console.error(`Database Sync Failed for ${action}:`, errorMsg);
+      }
+    } 
+    catch (e) { console.error("Database sync completely failed", e); }
   };
 
   // --- 2. LOADING LOGIC ---
@@ -73,6 +84,8 @@ export default function Home() {
       try {
         const res = await fetch('/api/admin');
         const dbData = await res.json();
+        
+        // If Turso has data, use it. Otherwise, load defaults so the page isn't blank.
         if (dbData.products && dbData.products.length > 0) setProducts(dbData.products);
         else setProducts([{ id: 1, name: 'VECNA BUST', price: 'INR 449.00', tag: 'TOP SELLING', category: 'Stranger Things', imgs: ['/Strangerthings1.jpeg'], dimensions: '14.2cm H', stock: 'AVAILABLE', description: 'Terrifyingly detailed bust of the Curse of Hawkins.', reviews: [{user: "Arjun_X", rating: 5, comment: "Insane detail on the tentacles!"}] }]);
         
@@ -114,7 +127,6 @@ export default function Home() {
     } else setDeliveryEst('');
   };
 
-  // FIXED: Safer file reading logic that correctly updates state
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, target: 'product' | 'category') => {
     const files = e.target.files;
     if (!files) return;
@@ -135,7 +147,6 @@ export default function Home() {
       reader.readAsDataURL(file);
     });
     
-    // Clear the input so you can upload the exact same image again if you delete it
     e.target.value = ''; 
   };
 
@@ -154,6 +165,7 @@ export default function Home() {
         reviews: []
     };
     setProducts([createdProduct, ...products]);
+    // Fix: Make sure to reset the dropdown state properly
     setNewProd({ ...newProd, name: '', desc: '', size: '', price: '' });
     setLocalImgs([]);
     await syncAdmin('ADD_PRODUCT', createdProduct);
@@ -304,6 +316,7 @@ export default function Home() {
   );
 
   if (!isLoaded) return <div className="bg-black min-h-screen flex items-center justify-center text-[#6f01ff] font-black uppercase tracking-[2em]">Morphing...</div>;
+  
   // --- 4. ADMIN VIEW (With Dashboard) ---
   if (view === 'admin') {
     return (
