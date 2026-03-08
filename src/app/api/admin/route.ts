@@ -1,11 +1,15 @@
 // src/app/api/admin/route.ts
 import { NextResponse } from 'next/server';
-import { turso } from '@/lib/turso';
+import { getTursoClient } from '@/lib/turso';
 
+// 🚨 CRITICAL FIX: This forces Next.js to fetch fresh data every time you refresh!
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 export const runtime = 'edge';
 
 export async function GET() {
   try {
+    const turso = getTursoClient(); // Connects fresh
     const productsRes = await turso.execute('SELECT * FROM products');
     const categoriesRes = await turso.execute('SELECT * FROM categories');
     const ordersRes = await turso.execute('SELECT * FROM orders ORDER BY date DESC');
@@ -36,6 +40,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const turso = getTursoClient(); // Connects fresh
     const body = await req.json();
     const { action, payload } = body;
 
@@ -61,8 +66,8 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Turso POST Error:", error);
-    return NextResponse.json({ error: "Failed to update admin data" }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Failed to update admin data" }, { status: 500 });
   }
 }
