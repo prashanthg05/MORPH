@@ -1,6 +1,6 @@
 // src/app/api/webhook/route.ts
 import { NextResponse } from 'next/server';
-import { turso } from '@/lib/turso';
+import { getTursoClient } from '@/lib/turso';
 
 export const runtime = 'edge';
 
@@ -45,7 +45,8 @@ export async function POST(req: Request) {
         const paymentData = event.payload.payment.entity;
         const orderId = paymentData.order_id;
 
-        // Update the order in Turso from "Awaiting Payment" to "Pending"
+        const turso = getTursoClient(); // <-- FIXED: Calls the fresh connection
+        
         await turso.execute({
             sql: 'UPDATE orders SET status = ? WHERE id = ?',
             args: ['Pending', orderId]
