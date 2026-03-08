@@ -61,13 +61,13 @@ export default function Home() {
     try { 
       const res = await fetch('/api/admin', { 
         method: 'POST', 
-        // 🚨 THE FIX: This tells Cloudflare/Next.js to actually read the data!
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, payload }) 
       }); 
       if (!res.ok) {
           const errorMsg = await res.text();
           console.error(`Database Sync Failed for ${action}:`, errorMsg);
+          triggerToast("Sync Failed: Image too large or DB error");
       }
     } 
     catch (e) { console.error("Database sync completely failed", e); }
@@ -85,7 +85,6 @@ export default function Home() {
         const res = await fetch('/api/admin');
         const dbData = await res.json();
         
-        // If Turso has data, use it. Otherwise, load defaults so the page isn't blank.
         if (dbData.products && dbData.products.length > 0) setProducts(dbData.products);
         else setProducts([{ id: 1, name: 'VECNA BUST', price: 'INR 449.00', tag: 'TOP SELLING', category: 'Stranger Things', imgs: ['/Strangerthings1.jpeg'], dimensions: '14.2cm H', stock: 'AVAILABLE', description: 'Terrifyingly detailed bust of the Curse of Hawkins.', reviews: [{user: "Arjun_X", rating: 5, comment: "Insane detail on the tentacles!"}] }]);
         
@@ -132,6 +131,10 @@ export default function Home() {
     if (!files) return;
     
     Array.from(files).forEach(file => {
+      // Client-side warning for massive files (over 500kb)
+      if (file.size > 500000) {
+          triggerToast("Warning: Image might be too large for DB!");
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         const resultString = reader.result as string;
@@ -165,7 +168,6 @@ export default function Home() {
         reviews: []
     };
     setProducts([createdProduct, ...products]);
-    // Fix: Make sure to reset the dropdown state properly
     setNewProd({ ...newProd, name: '', desc: '', size: '', price: '' });
     setLocalImgs([]);
     await syncAdmin('ADD_PRODUCT', createdProduct);
@@ -316,7 +318,6 @@ export default function Home() {
   );
 
   if (!isLoaded) return <div className="bg-black min-h-screen flex items-center justify-center text-[#6f01ff] font-black uppercase tracking-[2em]">Morphing...</div>;
-  
   // --- 4. ADMIN VIEW (With Dashboard) ---
   if (view === 'admin') {
     return (
@@ -369,7 +370,6 @@ export default function Home() {
                         <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-white/5 border-dashed rounded-2xl cursor-pointer hover:bg-white/5 transition-all">
                             <ImageIcon size={20} className="opacity-20 mb-1"/>
                             <p className="text-[9px] font-bold opacity-30 uppercase">Images ({localImgs.length}/4)</p>
-                            {/* FIXED: Added accept="image/*" so devices open the image gallery directly */}
                             <input type="file" multiple accept="image/*" className="hidden" onChange={(e)=>handleFileChange(e, 'product')}/>
                         </label>
                         <button type="submit" className="w-full bg-[#6f01ff] text-white py-4 rounded-2xl font-black uppercase italic text-xs tracking-widest shadow-lg">Deploy</button>
@@ -380,7 +380,6 @@ export default function Home() {
                 <div className="bg-zinc-900 border border-white/5 p-8 rounded-[3rem] shadow-xl">
                     <h2 className="text-sm font-black uppercase italic mb-6 text-red-500">Active Collections</h2>
                     
-                    {/* FIXED: The missing input form has been securely added to match the existing variables */}
                     <div className="mb-6 space-y-3 bg-black/20 p-4 rounded-2xl border border-white/5">
                         <input type="text" placeholder="NEW SERIES NAME" className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:border-[#6f01ff] transition-all" value={newCatName} onChange={(e)=>setNewCatName(e.target.value)}/>
                         <label className="flex items-center justify-center w-full h-10 border border-white/10 border-dashed rounded-xl cursor-pointer hover:bg-white/5 transition-all">
