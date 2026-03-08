@@ -52,7 +52,6 @@ export default function Home() {
   const [pincode, setPincode] = useState('');
   const [deliveryEst, setDeliveryEst] = useState('');
   
-  // Updated Form Data
   const [formData, setFormData] = useState({ name: '', number: '', mail: '', address: '', city: '', state: '', age: '' });
   const [toast, setToast] = useState<string | null>(null);
   const [orderFilter, setOrderFilter] = useState<'Pending' | 'Completed'>('Pending');
@@ -66,13 +65,11 @@ export default function Home() {
   // --- 2. LOADING LOGIC ---
   useEffect(() => {
     const loadData = async () => {
-      // User specific data stays in local storage
       const savedCart = localStorage.getItem('morph_cart');
       const savedUser = localStorage.getItem('morph_user');
       if (savedCart) setCartItems(JSON.parse(savedCart));
       if (savedUser) setFormData(JSON.parse(savedUser));
 
-      // Admin data fetches from Turso
       try {
         const res = await fetch('/api/admin');
         const dbData = await res.json();
@@ -91,7 +88,6 @@ export default function Home() {
 
     loadData();
 
-    // STRICT SHIFT+A LOCK
     const handleKeyDown = (e: KeyboardEvent) => {
         if (e.shiftKey && e.key === 'A') setShowLogin(true);
     };
@@ -103,7 +99,6 @@ export default function Home() {
     if (isLoaded) {
         localStorage.setItem('morph_cart', JSON.stringify(cartItems));
         localStorage.setItem('morph_user', JSON.stringify(formData));
-        // Products, Categories, and Orders are now managed by the API, so we don't save them to local storage anymore.
     }
   }, [cartItems, formData, isLoaded]);
 
@@ -119,18 +114,29 @@ export default function Home() {
     } else setDeliveryEst('');
   };
 
+  // FIXED: Safer file reading logic that correctly updates state
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, target: 'product' | 'category') => {
     const files = e.target.files;
-    if (files) {
-      Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          if (target === 'product') setLocalImgs(prev => [...prev, reader.result as string].slice(0, 4));
-          else setNewCatBanner(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-      });
-    }
+    if (!files) return;
+    
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const resultString = reader.result as string;
+        if (target === 'product') {
+            setLocalImgs(prev => {
+                const updated = [...prev, resultString];
+                return updated.slice(0, 4);
+            });
+        } else {
+            setNewCatBanner(resultString);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+    
+    // Clear the input so you can upload the exact same image again if you delete it
+    e.target.value = ''; 
   };
 
   const handleUploadProduct = async (e: React.FormEvent) => {
@@ -178,10 +184,8 @@ export default function Home() {
     } else triggerToast("Invalid Credentials");
   };
 
-  // Upgraded Checkout Logic - Solves the Worst-Case Scenario
   const handleCheckoutNow = async () => {
     try {
-        // Send full customer data to create the "Awaiting Payment" database entry first
         const res = await fetch('/api/order', {
             method: 'POST',
             body: JSON.stringify({ 
@@ -203,8 +207,6 @@ export default function Home() {
             description: "Artifact Haul",
             order_id: orderData.id,
             handler: async function (response: any) {
-                // Payment was successful. Webhook will handle DB background update, 
-                // but we update UI state and trigger a quick DB sync just to be safe.
                 const newOrder: Order = {
                     id: response.razorpay_order_id, customer: formData.name, phone: formData.number,
                     email: formData.mail, address: formData.address, city: formData.city, state: formData.state,
@@ -290,7 +292,6 @@ export default function Home() {
     return orders.filter(o => orderFilter === 'Pending' ? ['Pending', 'Packed', 'Awaiting Payment'].includes(o.status) : ['Shipped', 'Fulfilled'].includes(o.status));
   }, [orders, orderFilter]);
 
-  // Validation Check for Checkout Button Visibility
   const allFieldsFilled = Boolean(
     formData.name.trim() && 
     formData.number.trim() && 
@@ -355,7 +356,8 @@ export default function Home() {
                         <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-white/5 border-dashed rounded-2xl cursor-pointer hover:bg-white/5 transition-all">
                             <ImageIcon size={20} className="opacity-20 mb-1"/>
                             <p className="text-[9px] font-bold opacity-30 uppercase">Images ({localImgs.length}/4)</p>
-                            <input type="file" multiple className="hidden" onChange={(e)=>handleFileChange(e, 'product')}/>
+                            {/* FIXED: Added accept="image/*" so devices open the image gallery directly */}
+                            <input type="file" multiple accept="image/*" className="hidden" onChange={(e)=>handleFileChange(e, 'product')}/>
                         </label>
                         <button type="submit" className="w-full bg-[#6f01ff] text-white py-4 rounded-2xl font-black uppercase italic text-xs tracking-widest shadow-lg">Deploy</button>
                     </form>
@@ -364,6 +366,17 @@ export default function Home() {
                 {/* SERIES CONTROL */}
                 <div className="bg-zinc-900 border border-white/5 p-8 rounded-[3rem] shadow-xl">
                     <h2 className="text-sm font-black uppercase italic mb-6 text-red-500">Active Collections</h2>
+                    
+                    {/* FIXED: The missing input form has been securely added to match the existing variables */}
+                    <div className="mb-6 space-y-3 bg-black/20 p-4 rounded-2xl border border-white/5">
+                        <input type="text" placeholder="NEW SERIES NAME" className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:border-[#6f01ff] transition-all" value={newCatName} onChange={(e)=>setNewCatName(e.target.value)}/>
+                        <label className="flex items-center justify-center w-full h-10 border border-white/10 border-dashed rounded-xl cursor-pointer hover:bg-white/5 transition-all">
+                            <span className="text-[9px] font-bold opacity-50 uppercase">{newCatBanner ? 'Banner Uploaded ✓' : 'Upload Banner Image'}</span>
+                            <input type="file" accept="image/*" className="hidden" onChange={(e)=>handleFileChange(e, 'category')}/>
+                        </label>
+                        <button onClick={handleAddCategory} className="w-full bg-[#6f01ff] text-white py-3 rounded-xl font-black uppercase italic text-[10px] tracking-widest hover:scale-[1.02] transition-all">Create Series</button>
+                    </div>
+
                     <div className="space-y-3">
                         {categories.map(cat => (
                             <div key={cat.name} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
@@ -371,6 +384,7 @@ export default function Home() {
                                 <button onClick={()=>deleteCategory(cat.name)} className="text-red-500/30 hover:text-red-500 transition-colors p-2"><Trash2 size={16}/></button>
                             </div>
                         ))}
+                        {categories.length === 0 && <p className="text-[10px] uppercase opacity-30 text-center py-4 font-bold">No collections found</p>}
                     </div>
                 </div>
             </div>
@@ -507,7 +521,6 @@ export default function Home() {
         </div>
 
         <footer className="mt-40 p-24 text-center relative z-[200]">
-            {/* The backdoor click event has been securely removed here */}
             <div className="inline-block group">
                 <p className="text-[11px] font-black tracking-[1.5em] uppercase text-white/10 group-hover:text-[#6f01ff] transition-colors">Morph Studio × 2026</p>
                 <div className="h-px w-0 group-hover:w-full bg-[#6f01ff] transition-all duration-700 mx-auto mt-4 shadow-[0_0_10px_#6f01ff]" />
@@ -633,7 +646,6 @@ export default function Home() {
               <div className="pt-10 border-t border-white/10 text-center">
                 <div className="flex justify-between text-2xl font-black mb-10 italic uppercase tracking-tighter"><span>GRAND TOTAL</span><span className="text-[#6f01ff] font-black italic underline underline-offset-8 decoration-white/10">INR {totalPrice.toFixed(2)}</span></div>
                 
-                {/* CHECKOUT BUTTON NOW ONLY APPEARS WHEN ALL FIELDS ARE FILLED */}
                 {allFieldsFilled ? (
                     <button onClick={handleCheckoutNow} className="w-full bg-white text-black py-8 rounded-full font-black text-2xl hover:bg-[#6f01ff] hover:text-white transition-all shadow-xl uppercase italic flex items-center justify-center gap-4">Checkout Now</button>
                 ) : (
