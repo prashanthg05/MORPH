@@ -64,14 +64,23 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, payload }) 
       }); 
+      
       if (!res.ok) {
           const errorMsg = await res.text();
-          console.error(`Database Sync Failed for ${action}:`, errorMsg);
-          triggerToast("Sync Failed: Image too large or DB error");
+          console.error(`❌ Error: ${action}`, errorMsg);
+          triggerToast(`❌ Failed: ${errorMsg.substring(0, 50)}`);
+          return false;
       }
+      
+      console.log(`✅ Success: ${action}`);
+      return true;
     } 
-    catch (e) { console.error("Database sync completely failed", e); }
-  };
+    catch (e: any) { 
+      console.error("❌ Network error", e);
+      triggerToast(`❌ Error: ${e.message}`);
+      return false;
+    }
+};
 
   // --- 2. LOADING LOGIC ---
   useEffect(() => {
@@ -155,40 +164,77 @@ export default function Home() {
 
   const handleUploadProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!newProd.name.trim()) {
+      triggerToast("❌ Need product name");
+      return;
+    }
+    
     const createdProduct: Product = {
         id: Date.now(),
         name: newProd.name.toUpperCase(),
         description: newProd.desc,
         dimensions: newProd.size,
-        price: `INR ${parseFloat(newProd.price).toFixed(2)}`,
+        price: `INR ${parseFloat(newProd.price || '0').toFixed(2)}`,
         category: newProd.category,
         tag: 'NEW DROP',
         imgs: localImgs.length > 0 ? localImgs : ['/Strangerthings1.jpeg'],
         stock: 'AVAILABLE',
         reviews: []
     };
-    setProducts([createdProduct, ...products]);
-    setNewProd({ ...newProd, name: '', desc: '', size: '', price: '' });
-    setLocalImgs([]);
-    await syncAdmin('ADD_PRODUCT', createdProduct);
-    triggerToast("Artifact Deployed");
+    
+    triggerToast("⏳ Deploying...");
+    
+    // IMPORTANT: TRY DATABASE FIRST
+    const synced = await syncAdmin('ADD_PRODUCT', createdProduct);
+    
+    if (synced) {
+        setProducts([createdProduct, ...products]);
+        setNewProd({ ...newProd, name: '', desc: '', size: '', price: '' });
+        setLocalImgs([]);
+        triggerToast("✅ Artifact Deployed!");
+    } else {
+        triggerToast("❌ Failed to deploy");
+    }
   };
 
   const handleAddCategory = async () => {
-    if (!newCatName || !newCatBanner) return triggerToast("Need Name & Banner");
+    if (!newCatName.trim() || !newCatBanner) {
+      return triggerToast("❌ Need Name & Banner");
+    }
+    
+    triggerToast("⏳ Creating...");
+    
     const newCat = { name: newCatName, banner: newCatBanner };
-    setCategories([...categories, newCat]);
-    setNewCatName(''); setNewCatBanner(''); 
-    await syncAdmin('ADD_CATEGORY', newCat);
-    triggerToast("Series Created");
+    
+    // IMPORTANT: TRY DATABASE FIRST
+    const synced = await syncAdmin('ADD_CATEGORY', newCat);
+    
+    if (synced) {
+        setCategories([...categories, newCat]);
+        setNewCatName('');
+        setNewCatBanner('');
+        triggerToast("✅ Series Created!");
+    } else {
+        triggerToast("❌ Failed to create");
+    }
   };
 
+
   const deleteCategory = async (catName: string) => {
-    if (categories.length <= 1) return triggerToast("Must have 1 category");
-    setCategories(categories.filter(c => c.name !== catName));
-    setProducts(products.filter(p => p.category !== catName));
-    await syncAdmin('DELETE_CATEGORY', { name: catName });
-    triggerToast(`${catName} Purged`);
+    if (categories.length <= 1) return triggerToast("❌ Keep 1 category");
+    
+    triggerToast("⏳ Deleting...");
+    
+    const synced = await syncAdmin('DELETE_CATEGORY', { name: catName });
+    
+    if (synced) {
+        setCategories(categories.filter(c => c.name !== catName));
+        setProducts(products.filter(p => p.category !== catName));
+        triggerToast(`✅ ${catName} Deleted`);
+    } else {
+        triggerToast("❌ Failed to delete");
+    }
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -248,9 +294,16 @@ export default function Home() {
   };
 
   const updateOrderStatus = async (id: string, newStatus: Order['status']) => {
-    setOrders(orders.map(o => o.id === id ? { ...o, status: newStatus } : o));
-    await syncAdmin('UPDATE_ORDER_STATUS', { id, status: newStatus });
-    triggerToast(`Status changed to ${newStatus}`);
+    triggerToast("⏳ Updating...");
+    
+    const synced = await syncAdmin('UPDATE_ORDER_STATUS', { id, status: newStatus });
+    
+    if (synced) {
+        setOrders(orders.map(o => o.id === id ? { ...o, status: newStatus } : o));
+        triggerToast(`✅ Status: ${newStatus}`);
+    } else {
+        triggerToast("❌ Failed to update");
+    }
   };
 
   const toggleStock = async (id: number) => {
@@ -262,19 +315,44 @@ export default function Home() {
   };
 
   const deleteProduct = async (id: number) => {
-    setProducts(products.filter(p => p.id !== id));
-    await syncAdmin('DELETE_PRODUCT', { id });
-    triggerToast("Artifact Deleted");
+    triggerToast("⏳ Deleting...");
+    
+    const synced = await syncAdmin('DELETE_PRODUCT', { id });
+    
+    if (synced) {
+        setProducts(products.filter(p => p.id !== id));
+        triggerToast("✅ Artifact Deleted");
+    } else {
+        triggerToast("❌ Failed to delete");
+    }
   };
   
   const clearAllOrders = async () => {
-    setOrders([]);
-    await syncAdmin('CLEAR_ORDERS');
+    if (orders.length === 0) return triggerToast("❌ No orders");
+    
+    triggerToast("⏳ Clearing...");
+    
+    const synced = await syncAdmin('CLEAR_ORDERS');
+    
+    if (synced) {
+        setOrders([]);
+        triggerToast("✅ Orders cleared");
+    } else {
+        triggerToast("❌ Failed");
+    }
   };
 
   const deleteOrder = async (id: string) => {
-    setOrders(orders.filter(ord => ord.id !== id));
-    await syncAdmin('DELETE_ORDER', { id });
+    triggerToast("⏳ Deleting...");
+    
+    const synced = await syncAdmin('DELETE_ORDER', { id });
+    
+    if (synced) {
+        setOrders(orders.filter(ord => ord.id !== id));
+        triggerToast("✅ Order deleted");
+    } else {
+        triggerToast("❌ Failed");
+    }
   };
 
   const addToCart = (product: Product) => {
