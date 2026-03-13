@@ -1,4 +1,4 @@
-// 🔧 REPLACE YOUR ENTIRE src/app/api/admin/route.ts WITH THIS
+// 🔧 CORRECTED - REPLACE YOUR ENTIRE src/app/api/admin/route.ts WITH THIS
 
 import { NextResponse } from 'next/server';
 import { getTursoClient } from '@/lib/turso';
@@ -39,9 +39,12 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  let action = 'UNKNOWN';
+  
   try {
     const body = await req.json();
-    const { action, payload } = body;
+    action = body.action;
+    const { payload } = body;
 
     console.log('🔧 Action:', action, 'Payload:', payload);
 
@@ -165,11 +168,10 @@ export async function POST(req: Request) {
   catch (error: any) {
     console.error("❌ POST Error:", error);
     console.error("Error message:", error.message);
-    console.error("Error code:", error.code);
     
     return NextResponse.json({ 
       error: error.message || "Failed to process action",
-      action: body?.action
+      action: action
     }, { status: 500 });
   }
 }
