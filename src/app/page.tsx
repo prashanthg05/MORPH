@@ -460,9 +460,15 @@ export default function Home() {
                     
                     <div className="mb-6 space-y-3 bg-black/20 p-4 rounded-2xl border border-white/5">
                         <input type="text" placeholder="NEW SERIES NAME" className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:border-[#6f01ff] transition-all" value={newCatName} onChange={(e)=>setNewCatName(e.target.value)}/>
-                        <label className="flex items-center justify-center w-full h-10 border border-white/10 border-dashed rounded-xl cursor-pointer hover:bg-white/5 transition-all">
+                        <label htmlFor="category-banner" className="flex items-center justify-center w-full h-10 border border-white/10 border-dashed rounded-xl cursor-pointer hover:bg-white/5 transition-all">
                             <span className="text-[9px] font-bold opacity-50 uppercase">{newCatBanner ? 'Banner Uploaded ✓' : 'Upload Banner Image'}</span>
-                            <input type="file" accept="image/*" className="hidden" onChange={(e)=>handleFileChange(e, 'category')}/>
+                            <input 
+                              type="file" 
+                              id="category-banner"
+                              accept="image/*" 
+                              className="hidden" 
+                              onChange={(e)=>handleFileChange(e, 'category')}
+                            />
                         </label>
                         <button onClick={handleAddCategory} className="w-full bg-[#6f01ff] text-white py-3 rounded-xl font-black uppercase italic text-[10px] tracking-widest hover:scale-[1.02] transition-all">Create Series</button>
                     </div>
