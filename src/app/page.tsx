@@ -459,7 +459,14 @@ export default function Home() {
                     <h2 className="text-sm font-black uppercase italic mb-6 text-red-500">Active Collections</h2>
                     
                     <div className="mb-6 space-y-3 bg-black/20 p-4 rounded-2xl border border-white/5">
-                        <input type="text" placeholder="NEW SERIES NAME" className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:border-[#6f01ff] transition-all" value={newCatName} onChange={(e)=>setNewCatName(e.target.value)}/>
+                        <input 
+                          type="text" 
+                          id="series-name"
+                          placeholder="NEW SERIES NAME" 
+                          className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:border-[#6f01ff] transition-all"
+                          value={newCatName} 
+                          onChange={(e)=>setNewCatName(e.target.value)}
+                        />
                         <label htmlFor="category-banner" className="flex items-center justify-center w-full h-10 border border-white/10 border-dashed rounded-xl cursor-pointer hover:bg-white/5 transition-all">
                             <span className="text-[9px] font-bold opacity-50 uppercase">{newCatBanner ? 'Banner Uploaded ✓' : 'Upload Banner Image'}</span>
                             <input 
