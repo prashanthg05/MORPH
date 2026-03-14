@@ -1,20 +1,18 @@
-// 🔧 REPLACE src/app/api/webhook/route.ts WITH THIS FILE
-// Fixed: Uses Web Crypto API instead of Node.js crypto
+// ✅ FINAL CORRECT - src/app/api/webhook/route.ts
 
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs'; // Changed from 'edge'
 
-function getDB(context?: any) {
-  if (typeof globalThis !== 'undefined' && (globalThis as any).DB) {
-    return (globalThis as any).DB;
-  }
-  throw new Error('Database not available');
+function getDB(env: any): any {
+  const db = env?.DB;
+  if (!db) throw new Error('D1 Database not available');
+  return db;
 }
 
-async function verifySignature(body: string, signature: string, secret: string) {
+async function verifySignature(body: string, signature: string, secret: string): Promise<boolean> {
   try {
-    // Use Web Crypto API (works in Edge Runtime)
+    // Use Web Crypto API
     const encoder = new TextEncoder();
     const data = encoder.encode(body);
     const key = await crypto.subtle.importKey(
@@ -36,7 +34,7 @@ async function verifySignature(body: string, signature: string, secret: string) 
   }
 }
 
-export async function POST(request: Request, context?: any) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.text();
     const signature = request.headers.get('x-razorpay-signature') || '';
@@ -54,38 +52,27 @@ export async function POST(request: Request, context?: any) {
     const event = JSON.parse(body);
     console.log('📋 Event type:', event.event);
 
-    const db = getDB(context);
-
-    // Handle payment.authorized
-    if (event.event === 'payment.authorized') {
-      const paymentId = event.payload.payment.entity.id;
-      const orderId = event.payload.payment.entity.notes?.order_id;
-
-      console.log('✅ Payment authorized:', paymentId);
-
-      if (orderId) {
-        // Update order status to Payment Done
-        await db.prepare('UPDATE orders SET status = ? WHERE id = ?')
-          .bind('Payment Done', orderId)
-          .run();
-
-        console.log('📝 Order updated:', orderId);
-      }
+    const env = (request as any).cf?.env || {};
+    let db;
+    if (Object.keys(env).length > 0) {
+      db = getDB(env);
+    } else if ((globalThis as any).DB) {
+      db = (globalThis as any).DB;
+    } else {
+      throw new Error('Database not available');
     }
 
-    // Handle payment.captured
-    if (event.event === 'payment.captured') {
-      const paymentId = event.payload.payment.entity.id;
-      const orderId = event.payload.payment.entity.notes?.order_id;
+    // Handle payment events
+    if (event.event === 'payment.authorized' || event.event === 'payment.captured') {
+      const paymentId = event.payload?.payment?.entity?.id;
+      const orderId = event.payload?.payment?.entity?.notes?.order_id;
 
-      console.log('✅ Payment captured:', paymentId);
+      console.log('✅ Payment event:', event.event, paymentId);
 
       if (orderId) {
-        // Update order status to Payment Done
         await db.prepare('UPDATE orders SET status = ? WHERE id = ?')
           .bind('Payment Done', orderId)
           .run();
-
         console.log('📝 Order updated:', orderId);
       }
     }
@@ -93,8 +80,6 @@ export async function POST(request: Request, context?: any) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("❌ Webhook error:", error.message);
-    return NextResponse.json({ 
-      error: error.message || "Webhook processing failed" 
-    }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
