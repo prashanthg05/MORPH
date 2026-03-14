@@ -1,18 +1,21 @@
-// ✅ TRULY FINAL CORRECT - src/app/api/order/route.ts
-// Edge Runtime with proper D1 binding
+// ✅ CORRECT - src/app/api/order/route.ts
 
 import { NextResponse, type NextRequest } from 'next/server';
 
 export const runtime = 'edge';
 
-export async function POST(request: NextRequest, context?: any) {
+function getDB(): any {
+  if ((globalThis as any).DB) return (globalThis as any).DB;
+  if ((globalThis as any).env?.DB) return (globalThis as any).env.DB;
+  throw new Error('D1 Database not available');
+}
+
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { amount, items, customer, email, phone, address, city, state, pincode } = body;
 
-    const db = (context?.platform?.env?.DB || (globalThis as any).DB) as any;
-    if (!db) throw new Error('D1 not available');
-
+    const db = getDB();
     const orderId = Date.now().toString();
     const date = new Date().toLocaleDateString();
 
@@ -23,9 +26,18 @@ export async function POST(request: NextRequest, context?: any) {
       amount || 0, 'Awaiting Payment', date, JSON.stringify(items || []), JSON.stringify(items || [])
     ).run();
 
-    return NextResponse.json({ success: true, orderId, amount });
+    console.log('✅ Order created:', orderId);
+
+    return NextResponse.json({
+      success: true,
+      orderId,
+      amount
+    });
   } catch (error: any) {
-    console.error('❌ Order error:', error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('❌ Order error:', error.message || error);
+    return NextResponse.json(
+      { error: error.message || 'Error creating order' },
+      { status: 500 }
+    );
   }
 }

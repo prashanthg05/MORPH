@@ -1,10 +1,8 @@
 name = "morph-studios"
-main = "src/index.ts"
-compatibility_date = "2024-01-01"
-type = "javascript"
+compatibility_date = "2024-12-01"
 
-# Cloudflare Pages configuration for Next.js
-build = { command = "npm run build" }
+# For Cloudflare Pages
+pages_build_output_dir = ".vercel/output/static"
 
 # D1 Database binding
 [[d1_databases]]
@@ -12,14 +10,18 @@ binding = "DB"
 database_name = "morph-db"
 database_id = "facbbef5-0d8a-4fe5-ae42-b87378bd948c"
 
-# Environment variables (optional - for local development)
-[env.development]
-vars = { ENVIRONMENT = "development" }
-
 [env.production]
 vars = { ENVIRONMENT = "production" }
 
 [[env.production.d1_databases]]
+binding = "DB"
+database_name = "morph-db"
+database_id = "facbbef5-0d8a-4fe5-ae42-b87378bd948c"
+
+[env.development]
+vars = { ENVIRONMENT = "development" }
+
+[[env.development.d1_databases]]
 binding = "DB"
 database_name = "morph-db"
 database_id = "facbbef5-0d8a-4fe5-ae42-b87378bd948c"
