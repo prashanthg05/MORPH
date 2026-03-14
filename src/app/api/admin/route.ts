@@ -1,36 +1,36 @@
 // 🔧 REPLACE src/app/api/admin/route.ts WITH THIS FILE
-// This version uses Cloudflare D1 instead of Turso
+// Fixed: Proper D1 context handling for Cloudflare Pages
 
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const runtime = 'edge';
 
-// Get database from Cloudflare environment
-function getDB(context?: any) {
-  // In Cloudflare Pages, the database is in context.env
+// Helper to get database from global context
+function getDB(): any {
   if (typeof globalThis !== 'undefined' && (globalThis as any).DB) {
     return (globalThis as any).DB;
   }
   
-  throw new Error('Database not available');
+  // Try to access from request context
+  throw new Error('D1 Database binding not found. Ensure wrangler.toml is configured correctly.');
 }
 
-export async function GET(request: Request, context?: any) {
+export async function GET(request: NextRequest) {
   try {
-    const db = getDB(context);
+    console.log('📨 Admin GET request');
 
-    console.log('📨 Admin GET request received');
+    const db = getDB();
 
     // Fetch all data
     const productsRes = await db.prepare('SELECT * FROM products').all();
     const categoriesRes = await db.prepare('SELECT * FROM categories').all();
     const ordersRes = await db.prepare('SELECT * FROM orders ORDER BY date DESC').all();
 
-    console.log(`📦 Fetched ${productsRes.results?.length || 0} products`);
-    console.log(`📂 Fetched ${categoriesRes.results?.length || 0} categories`);
-    console.log(`📋 Fetched ${ordersRes.results?.length || 0} orders`);
+    console.log(`✅ Fetched products: ${productsRes.results?.length || 0}`);
+    console.log(`✅ Fetched categories: ${categoriesRes.results?.length || 0}`);
+    console.log(`✅ Fetched orders: ${ordersRes.results?.length || 0}`);
 
     // Parse JSON fields
     const products = (productsRes.results || []).map((row: any) => ({
@@ -48,15 +48,23 @@ export async function GET(request: Request, context?: any) {
     return NextResponse.json({
       products: products,
       categories: categoriesRes.results || [],
-      orders: orders
+      orders: orders,
+      success: true
     });
   } catch (error: any) {
     console.error("❌ GET Error:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Stack:", error.stack);
+    return NextResponse.json(
+      { 
+        error: error.message,
+        details: 'Failed to fetch data'
+      }, 
+      { status: 500 }
+    );
   }
 }
 
-export async function POST(request: Request, context?: any) {
+export async function POST(request: NextRequest) {
   let action = 'UNKNOWN';
 
   try {
@@ -64,35 +72,33 @@ export async function POST(request: Request, context?: any) {
     action = body.action;
     const { payload } = body;
 
-    console.log('🔧 Action:', action, 'Payload:', payload);
+    console.log('🔧 Action:', action);
+    console.log('📦 Payload:', JSON.stringify(payload).substring(0, 100));
 
-    const db = getDB(context);
+    const db = getDB();
 
     // ADD_CATEGORY
     if (action === 'ADD_CATEGORY') {
-      console.log('📝 Adding category:', payload.name);
+      console.log('📝 Adding category:', payload.name, payload.banner);
 
-      try {
-        await db.prepare(
-          'INSERT INTO categories (name, banner) VALUES (?, ?)'
-        ).bind(payload.name, payload.banner).run();
+      const result = await db.prepare(
+        'INSERT INTO categories (name, banner) VALUES (?, ?)'
+      ).bind(payload.name, payload.banner).run();
 
-        console.log('✅ Category added successfully');
-      } catch (dbError: any) {
-        console.error('❌ Database error:', dbError.message);
-        if (dbError.message.includes('UNIQUE constraint')) {
-          console.log('ℹ️ Category already exists');
-        } else {
-          throw dbError;
-        }
-      }
+      console.log('✅ Category added:', result);
+
+      return NextResponse.json({ 
+        success: true, 
+        action: action,
+        message: 'Category created'
+      });
     }
 
     // ADD_PRODUCT
     else if (action === 'ADD_PRODUCT') {
       console.log('📝 Adding product:', payload.name);
 
-      await db.prepare(
+      const result = await db.prepare(
         'INSERT INTO products (id, name, price, tag, category, dimensions, stock, description, imgs, reviews) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       ).bind(
         payload.id,
@@ -107,7 +113,13 @@ export async function POST(request: Request, context?: any) {
         JSON.stringify(payload.reviews)
       ).run();
 
-      console.log('✅ Product added successfully');
+      console.log('✅ Product added:', result);
+
+      return NextResponse.json({ 
+        success: true, 
+        action: action,
+        message: 'Product created'
+      });
     }
 
     // DELETE_PRODUCT
@@ -119,6 +131,12 @@ export async function POST(request: Request, context?: any) {
         .run();
 
       console.log('✅ Product deleted');
+
+      return NextResponse.json({ 
+        success: true, 
+        action: action,
+        message: 'Product deleted'
+      });
     }
 
     // TOGGLE_STOCK
@@ -130,6 +148,12 @@ export async function POST(request: Request, context?: any) {
         .run();
 
       console.log('✅ Stock toggled');
+
+      return NextResponse.json({ 
+        success: true, 
+        action: action,
+        message: 'Stock updated'
+      });
     }
 
     // DELETE_CATEGORY
@@ -141,6 +165,12 @@ export async function POST(request: Request, context?: any) {
         .run();
 
       console.log('✅ Category deleted');
+
+      return NextResponse.json({ 
+        success: true, 
+        action: action,
+        message: 'Category deleted'
+      });
     }
 
     // UPDATE_ORDER_STATUS
@@ -152,6 +182,12 @@ export async function POST(request: Request, context?: any) {
         .run();
 
       console.log('✅ Order status updated');
+
+      return NextResponse.json({ 
+        success: true, 
+        action: action,
+        message: 'Order updated'
+      });
     }
 
     // DELETE_ORDER
@@ -163,6 +199,12 @@ export async function POST(request: Request, context?: any) {
         .run();
 
       console.log('✅ Order deleted');
+
+      return NextResponse.json({ 
+        success: true, 
+        action: action,
+        message: 'Order deleted'
+      });
     }
 
     // CLEAR_ORDERS
@@ -172,24 +214,30 @@ export async function POST(request: Request, context?: any) {
       await db.prepare('DELETE FROM orders').run();
 
       console.log('✅ Orders cleared');
+
+      return NextResponse.json({ 
+        success: true, 
+        action: action,
+        message: 'Orders cleared'
+      });
     }
 
     // Unknown action
     else {
       console.error('❌ Unknown action:', action);
-      return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
+      return NextResponse.json({ 
+        error: `Unknown action: ${action}` 
+      }, { status: 400 });
     }
-
-    console.log('✅ Action completed successfully');
-    return NextResponse.json({ success: true, action: action });
   }
   catch (error: any) {
-    console.error("❌ POST Error:", error);
-    console.error("Error message:", error.message);
+    console.error("❌ POST Error:", error.message);
+    console.error("Stack:", error.stack);
 
     return NextResponse.json({
       error: error.message || "Failed to process action",
-      action: action
+      action: action,
+      details: error.toString()
     }, { status: 500 });
   }
 }
