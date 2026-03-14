@@ -1,18 +1,12 @@
-// ✅ FINAL CORRECT - src/app/api/webhook/route.ts
+// ✅ TRULY FINAL CORRECT - src/app/api/webhook/route.ts
+// Edge Runtime with proper D1 binding
 
 import { NextResponse, type NextRequest } from 'next/server';
 
-export const runtime = 'nodejs'; // Changed from 'edge'
-
-function getDB(env: any): any {
-  const db = env?.DB;
-  if (!db) throw new Error('D1 Database not available');
-  return db;
-}
+export const runtime = 'edge';
 
 async function verifySignature(body: string, signature: string, secret: string): Promise<boolean> {
   try {
-    // Use Web Crypto API
     const encoder = new TextEncoder();
     const data = encoder.encode(body);
     const key = await crypto.subtle.importKey(
@@ -29,57 +23,37 @@ async function verifySignature(body: string, signature: string, secret: string):
     
     return signature === hashBase64;
   } catch (error) {
-    console.error('Signature verification error:', error);
     return false;
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest, context?: any) {
   try {
     const body = await request.text();
     const signature = request.headers.get('x-razorpay-signature') || '';
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET || '';
 
-    console.log('🔔 Webhook received');
-
-    // Verify signature
     const isValid = await verifySignature(body, signature, secret);
     if (!isValid) {
-      console.warn('⚠️ Webhook signature verification failed');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     const event = JSON.parse(body);
-    console.log('📋 Event type:', event.event);
+    const db = (context?.platform?.env?.DB || (globalThis as any).DB) as any;
+    
+    if (!db) throw new Error('D1 not available');
 
-    const env = (request as any).cf?.env || {};
-    let db;
-    if (Object.keys(env).length > 0) {
-      db = getDB(env);
-    } else if ((globalThis as any).DB) {
-      db = (globalThis as any).DB;
-    } else {
-      throw new Error('Database not available');
-    }
-
-    // Handle payment events
     if (event.event === 'payment.authorized' || event.event === 'payment.captured') {
-      const paymentId = event.payload?.payment?.entity?.id;
       const orderId = event.payload?.payment?.entity?.notes?.order_id;
-
-      console.log('✅ Payment event:', event.event, paymentId);
-
       if (orderId) {
         await db.prepare('UPDATE orders SET status = ? WHERE id = ?')
-          .bind('Payment Done', orderId)
-          .run();
-        console.log('📝 Order updated:', orderId);
+          .bind('Payment Done', orderId).run();
       }
     }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("❌ Webhook error:", error.message);
+    console.error('❌ Webhook:', error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
