@@ -10,18 +10,20 @@ binding = "DB"
 database_name = "morph-db"
 database_id = "facbbef5-0d8a-4fe5-ae42-b87378bd948c"
 
-[env.production]
-vars = { ENVIRONMENT = "production" }
+# Preview environment
+[env.preview]
+vars = { ENVIRONMENT = "preview" }
 
-[[env.production.d1_databases]]
+[[env.preview.d1_databases]]
 binding = "DB"
 database_name = "morph-db"
 database_id = "facbbef5-0d8a-4fe5-ae42-b87378bd948c"
 
-[env.development]
-vars = { ENVIRONMENT = "development" }
+# Production environment
+[env.production]
+vars = { ENVIRONMENT = "production" }
 
-[[env.development.d1_databases]]
+[[env.production.d1_databases]]
 binding = "DB"
 database_name = "morph-db"
 database_id = "facbbef5-0d8a-4fe5-ae42-b87378bd948c"
