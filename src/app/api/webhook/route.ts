@@ -1,66 +1,85 @@
-// src/app/api/webhook/route.ts
+// 🔧 REPLACE src/app/api/webhook/route.ts WITH THIS FILE
+// This version uses Cloudflare D1 instead of Turso
+
 import { NextResponse } from 'next/server';
-import { getTursoClient } from '@/lib/turso';
+import crypto from 'crypto';
 
 export const runtime = 'edge';
 
-async function verifyRazorpaySignature(body: string, signature: string, secret: string) {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw', 
-    encoder.encode(secret), 
-    { name: 'HMAC', hash: 'SHA-256' }, 
-    false, 
-    ['sign']
-  );
-  
-  const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(body));
-  
-  const expectedSignature = Array.from(new Uint8Array(signatureBuffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-    
-  return expectedSignature === signature;
+function getDB(context?: any) {
+  if (typeof globalThis !== 'undefined' && (globalThis as any).DB) {
+    return (globalThis as any).DB;
+  }
+  throw new Error('Database not available');
 }
 
-export async function POST(req: Request) {
+function verifySignature(body: string, signature: string, secret: string) {
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(body)
+    .digest('base64');
+
+  return signature === expectedSignature;
+}
+
+export async function POST(request: Request, context?: any) {
   try {
-    const body = await req.text();
-    const signature = req.headers.get('x-razorpay-signature');
+    const body = await request.text();
+    const signature = request.headers.get('x-razorpay-signature') || '';
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET || '';
 
-    if (!signature) {
-      return NextResponse.json({ error: "Missing signature" }, { status: 400 });
+    console.log('🔔 Webhook received');
+
+    // Verify signature
+    if (!verifySignature(body, signature, secret)) {
+      console.warn('⚠️ Webhook signature verification failed');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
-    const isValid = await verifyRazorpaySignature(
-      body, 
-      signature, 
-      process.env.RAZORPAY_WEBHOOK_SECRET!
-    );
+    const event = JSON.parse(body);
+    console.log('📋 Event type:', event.event);
 
-    if (isValid) {
-      const event = JSON.parse(body);
+    const db = getDB(context);
 
-      if (event.event === 'payment.captured') {
-        const paymentData = event.payload.payment.entity;
-        const orderId = paymentData.order_id;
+    // Handle payment.authorized
+    if (event.event === 'payment.authorized') {
+      const paymentId = event.payload.payment.entity.id;
+      const orderId = event.payload.payment.entity.notes?.order_id;
 
-        const turso = getTursoClient(); // <-- FIXED: Calls the fresh connection
-        
-        await turso.execute({
-            sql: 'UPDATE orders SET status = ? WHERE id = ?',
-            args: ['Pending', orderId]
-        });
+      console.log('✅ Payment authorized:', paymentId);
 
-        console.log("Payment captured securely! Turso updated order:", orderId);
+      if (orderId) {
+        // Update order status to Payment Done
+        await db.prepare('UPDATE orders SET status = ? WHERE id = ?')
+          .bind('Payment Done', orderId)
+          .run();
+
+        console.log('📝 Order updated:', orderId);
       }
-
-      return NextResponse.json({ status: 'ok' });
-    } else {
-      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
-  } catch (error) {
-    console.error("Webhook Error:", error);
-    return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
+
+    // Handle payment.captured
+    if (event.event === 'payment.captured') {
+      const paymentId = event.payload.payment.entity.id;
+      const orderId = event.payload.payment.entity.notes?.order_id;
+
+      console.log('✅ Payment captured:', paymentId);
+
+      if (orderId) {
+        // Update order status to Payment Done
+        await db.prepare('UPDATE orders SET status = ? WHERE id = ?')
+          .bind('Payment Done', orderId)
+          .run();
+
+        console.log('📝 Order updated:', orderId);
+      }
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("❌ Webhook error:", error.message);
+    return NextResponse.json({ 
+      error: error.message || "Webhook processing failed" 
+    }, { status: 500 });
   }
 }
