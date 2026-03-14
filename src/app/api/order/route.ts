@@ -4,9 +4,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 export const runtime = 'edge';
 
-function getDB(): any {
+function getDB(request: NextRequest): any {
+  const db = (request as any).cf?.env?.DB;
+  if (db) return db;
   if ((globalThis as any).DB) return (globalThis as any).DB;
-  if ((globalThis as any).env?.DB) return (globalThis as any).env.DB;
   throw new Error('D1 Database not available');
 }
 
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { amount, items, customer, email, phone, address, city, state, pincode } = body;
 
-    const db = getDB();
+    const db = getDB(request);
     const orderId = Date.now().toString();
     const date = new Date().toLocaleDateString();
 
@@ -28,16 +29,9 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Order created:', orderId);
 
-    return NextResponse.json({
-      success: true,
-      orderId,
-      amount
-    });
+    return NextResponse.json({ success: true, orderId, amount });
   } catch (error: any) {
-    console.error('❌ Order error:', error.message || error);
-    return NextResponse.json(
-      { error: error.message || 'Error creating order' },
-      { status: 500 }
-    );
+    console.error('❌ Order error:', error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

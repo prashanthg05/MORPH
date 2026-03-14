@@ -4,9 +4,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 export const runtime = 'edge';
 
-function getDB(): any {
+function getDB(request: NextRequest): any {
+  const db = (request as any).cf?.env?.DB;
+  if (db) return db;
   if ((globalThis as any).DB) return (globalThis as any).DB;
-  if ((globalThis as any).env?.DB) return (globalThis as any).env.DB;
   throw new Error('D1 Database not available');
 }
 
@@ -38,16 +39,13 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get('x-razorpay-signature') || '';
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET || '';
 
-    console.log('🔔 Webhook received');
-
     const isValid = await verifySignature(body, signature, secret);
     if (!isValid) {
-      console.warn('⚠️ Signature verification failed');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     const event = JSON.parse(body);
-    const db = getDB();
+    const db = getDB(request);
 
     if (event.event === 'payment.authorized' || event.event === 'payment.captured') {
       const orderId = event.payload?.payment?.entity?.notes?.order_id;
@@ -61,10 +59,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('❌ Webhook error:', error.message || error);
-    return NextResponse.json(
-      { error: error.message || 'Webhook error' },
-      { status: 500 }
-    );
+    console.error('❌ Webhook error:', error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

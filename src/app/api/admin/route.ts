@@ -1,5 +1,5 @@
-// ✅ FINAL CORRECT - src/app/api/admin/route.ts
-// Multiple D1 access methods for Cloudflare Pages
+// ✅ CORRECT - src/app/api/admin/route.ts
+// For Cloudflare Pages + D1 (proper way!)
 
 import { NextResponse, type NextRequest } from 'next/server';
 
@@ -7,34 +7,45 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const runtime = 'edge';
 
-// Helper to get DB from any available source
-function getDB(): any {
-  // Method 1: Check globalThis (Cloudflare Pages injects here)
+// On Cloudflare Pages, we need to access D1 from the request context
+// The D1 binding is attached to the request in the cf object
+function getDB(request: NextRequest): any {
+  // The correct way to access D1 on Cloudflare Pages:
+  // It's in request.cf.env.DB (in the Cloudflare Pages Functions environment)
+  
+  const db = (request as any).cf?.env?.DB;
+  
+  if (db) {
+    console.log('✅ Found D1 in request.cf.env.DB');
+    return db;
+  }
+
+  // Fallback: Try globalThis (in case it was injected some other way)
   if ((globalThis as any).DB) {
-    console.log('✅ Using DB from globalThis');
+    console.log('✅ Found D1 in globalThis');
     return (globalThis as any).DB;
   }
 
-  // Method 2: Check globalThis.env.DB (alternate path)
-  if ((globalThis as any).env?.DB) {
-    console.log('✅ Using DB from globalThis.env');
-    return (globalThis as any).env.DB;
+  // Last resort: try process.env
+  if ((globalThis as any).__d1__ ) {
+    console.log('✅ Found D1 in globalThis.__d1__');
+    return (globalThis as any).__d1__;
   }
 
-  // If not found, throw error with debugging info
-  console.error('❌ D1 not found. Available on globalThis:', Object.keys(globalThis));
-  throw new Error('D1 Database binding not available in globalThis');
+  console.error('❌ D1 not found in request.cf.env.DB');
+  console.error('Request CF object keys:', Object.keys((request as any).cf || {}));
+  if ((request as any).cf?.env) {
+    console.error('Request CF env keys:', Object.keys((request as any).cf.env));
+  }
+
+  throw new Error('D1 Database not available in request.cf.env.DB');
 }
 
 export async function GET(request: NextRequest) {
   try {
     console.log('📨 GET /api/admin');
 
-    const db = getDB();
-
-    // Test connection first
-    const testResult = await db.prepare('SELECT 1').all();
-    console.log('✅ DB connection OK');
+    const db = getDB(request);
 
     const products = await db.prepare('SELECT * FROM products').all();
     const categories = await db.prepare('SELECT * FROM categories').all();
@@ -61,15 +72,9 @@ export async function GET(request: NextRequest) {
       success: true
     });
   } catch (error: any) {
-    console.error('❌ GET Error:', error.message || error);
+    console.error('❌ GET Error:', error.message);
     console.error('Stack:', error.stack);
-    return NextResponse.json(
-      { 
-        error: error.message || 'Database error',
-        type: 'database_error'
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
@@ -83,106 +88,68 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔧 Action: ${action}`);
 
-    const db = getDB();
+    const db = getDB(request);
 
-    // ADD_CATEGORY
     if (action === 'ADD_CATEGORY') {
       console.log(`📝 Adding category: ${payload.name}`);
-
       await db.prepare('INSERT INTO categories (name, banner) VALUES (?, ?)')
         .bind(payload.name, payload.banner)
         .run();
-
       console.log('✅ Category added');
-
-      return NextResponse.json({
-        success: true,
-        action,
-        message: 'Category created'
-      });
+      return NextResponse.json({ success: true, action });
     }
 
-    // ADD_PRODUCT
     else if (action === 'ADD_PRODUCT') {
       console.log(`📝 Adding product: ${payload.name}`);
-
       await db.prepare(
         'INSERT INTO products (id, name, price, tag, category, dimensions, stock, description, imgs, reviews) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       ).bind(
-        payload.id,
-        payload.name,
-        payload.price,
-        payload.tag,
-        payload.category,
-        payload.dimensions,
-        payload.stock,
-        payload.description,
-        JSON.stringify(payload.imgs),
-        JSON.stringify(payload.reviews)
+        payload.id, payload.name, payload.price, payload.tag, payload.category,
+        payload.dimensions, payload.stock, payload.description,
+        JSON.stringify(payload.imgs), JSON.stringify(payload.reviews)
       ).run();
-
       console.log('✅ Product added');
-
-      return NextResponse.json({
-        success: true,
-        action,
-        message: 'Product created'
-      });
+      return NextResponse.json({ success: true, action });
     }
 
-    // DELETE_PRODUCT
     else if (action === 'DELETE_PRODUCT') {
       await db.prepare('DELETE FROM products WHERE id = ?').bind(payload.id).run();
       return NextResponse.json({ success: true, action });
     }
 
-    // TOGGLE_STOCK
     else if (action === 'TOGGLE_STOCK') {
       await db.prepare('UPDATE products SET stock = ? WHERE id = ?')
         .bind(payload.stock, payload.id).run();
       return NextResponse.json({ success: true, action });
     }
 
-    // DELETE_CATEGORY
     else if (action === 'DELETE_CATEGORY') {
       await db.prepare('DELETE FROM categories WHERE name = ?').bind(payload.name).run();
       return NextResponse.json({ success: true, action });
     }
 
-    // UPDATE_ORDER_STATUS
     else if (action === 'UPDATE_ORDER_STATUS') {
       await db.prepare('UPDATE orders SET status = ? WHERE id = ?')
         .bind(payload.status, payload.id).run();
       return NextResponse.json({ success: true, action });
     }
 
-    // DELETE_ORDER
     else if (action === 'DELETE_ORDER') {
       await db.prepare('DELETE FROM orders WHERE id = ?').bind(payload.id).run();
       return NextResponse.json({ success: true, action });
     }
 
-    // CLEAR_ORDERS
     else if (action === 'CLEAR_ORDERS') {
       await db.prepare('DELETE FROM orders').run();
       return NextResponse.json({ success: true, action });
     }
 
     else {
-      return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
+      return NextResponse.json({ error: `Unknown: ${action}` }, { status: 400 });
     }
   }
   catch (error: any) {
-    console.error(`❌ POST Error [${action}]:`, error.message || error);
-    console.error('Stack:', error.stack);
-
-    return NextResponse.json(
-      {
-        error: error.message || 'Database error',
-        action,
-        type: 'database_error'
-      },
-      { status: 500 }
-    );
+    console.error(`❌ POST Error [${action}]:`, error.message);
+    return NextResponse.json({ error: error.message, action }, { status: 500 });
   }
 }
