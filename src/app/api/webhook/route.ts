@@ -1,8 +1,7 @@
 // 🔧 REPLACE src/app/api/webhook/route.ts WITH THIS FILE
-// This version uses Cloudflare D1 instead of Turso
+// Fixed: Uses Web Crypto API instead of Node.js crypto
 
 import { NextResponse } from 'next/server';
-import crypto from 'crypto';
 
 export const runtime = 'edge';
 
@@ -13,13 +12,28 @@ function getDB(context?: any) {
   throw new Error('Database not available');
 }
 
-function verifySignature(body: string, signature: string, secret: string) {
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(body)
-    .digest('base64');
-
-  return signature === expectedSignature;
+async function verifySignature(body: string, signature: string, secret: string) {
+  try {
+    // Use Web Crypto API (works in Edge Runtime)
+    const encoder = new TextEncoder();
+    const data = encoder.encode(body);
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    
+    const signatureBuffer = await crypto.subtle.sign('HMAC', key, data);
+    const hashArray = Array.from(new Uint8Array(signatureBuffer));
+    const hashBase64 = btoa(String.fromCharCode.apply(null, hashArray));
+    
+    return signature === hashBase64;
+  } catch (error) {
+    console.error('Signature verification error:', error);
+    return false;
+  }
 }
 
 export async function POST(request: Request, context?: any) {
@@ -31,7 +45,8 @@ export async function POST(request: Request, context?: any) {
     console.log('🔔 Webhook received');
 
     // Verify signature
-    if (!verifySignature(body, signature, secret)) {
+    const isValid = await verifySignature(body, signature, secret);
+    if (!isValid) {
       console.warn('⚠️ Webhook signature verification failed');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }

@@ -1,12 +1,11 @@
 // 🔧 REPLACE src/lib/turso.ts WITH THIS FILE
+// Fixed: No external type imports needed
 
 // This file connects to Cloudflare D1 instead of Turso
 // D1 is built into Cloudflare - no external dependency needed!
 
-import { D1Database } from '@cloudflare/workers-types';
-
 // Get the D1 database binding
-export function getDatabase(env?: any): D1Database {
+export function getDatabase(env?: any): any {
   // For Cloudflare Workers/Pages
   if (typeof globalThis !== 'undefined' && (globalThis as any).DB) {
     return (globalThis as any).DB;
@@ -67,3 +66,6 @@ export const tursoClient = {
     }
   }
 };
+
+// Export for backward compatibility
+export const getTursoClient = () => tursoClient;
