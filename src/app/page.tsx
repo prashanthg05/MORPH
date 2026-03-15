@@ -156,23 +156,51 @@ export default function Home() {
     if (!files) return;
     
     Array.from(files).forEach(file => {
-      // Client-side warning for massive files (over 500kb)
-      if (file.size > 500000) {
-          triggerToast("Warning: Image might be too large for DB!");
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const resultString = reader.result as string;
-        if (target === 'product') {
-            setLocalImgs(prev => {
-                const updated = [...prev, resultString];
-                return updated.slice(0, 4);
-            });
-        } else {
-            setNewCatBanner(resultString);
-        }
+      // Create an image object to draw to Canvas for compression
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      
+      img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          // Max dimensions (Cloudflare D1 column limit saver)
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          // Compress to webp at 60% quality. This dramatically reduces file size from MBs to KBs
+          const compressedBase64 = canvas.toDataURL('image/webp', 0.6);
+          URL.revokeObjectURL(objectUrl); // Clean up memory
+
+          if (target === 'product') {
+              setLocalImgs(prev => {
+                  const updated = [...prev, compressedBase64];
+                  return updated.slice(0, 4);
+              });
+          } else {
+              setNewCatBanner(compressedBase64);
+          }
       };
-      reader.readAsDataURL(file);
+      
+      img.src = objectUrl;
     });
     
     e.target.value = ''; 
