@@ -2,6 +2,7 @@
 // Try ALL possible ways to access D1 on Cloudflare Pages
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -9,6 +10,16 @@ export const runtime = 'edge';
 
 function getDB(request: NextRequest): any {
   console.log('🔍 Looking for D1...');
+
+  try {
+    const ctx = getRequestContext();
+    if (ctx.env && (ctx.env as any).DB) {
+      console.log('✅ Found DB via getRequestContext().env.DB');
+      return (ctx.env as any).DB;
+    }
+  } catch (e) {
+    console.log('⚠️ getRequestContext() failed, falling back...');
+  }
 
   // Method 1: request.cf.env.DB (standard for Pages Functions)
   if ((request as any).cf?.env?.DB) {
@@ -27,14 +38,6 @@ function getDB(request: NextRequest): any {
     console.log('✅ Found DB in request.env.DB');
     return (request as any).env.DB;
   }
-
-  // Method 4: Check what's actually available
-  console.error('❌ D1 not found. Debugging info:');
-  console.error('request.cf keys:', Object.keys((request as any).cf || {}));
-  if ((request as any).cf) {
-    console.error('request.cf.env keys:', Object.keys((request as any).cf.env || {}));
-  }
-  console.error('globalThis keys with DB:', Object.keys(globalThis).filter(k => k.includes('DB')));
 
   throw new Error('D1 Database binding not found. Check Cloudflare Pages D1 Bindings configuration.');
 }

@@ -1,10 +1,16 @@
 // ✅ CORRECT - src/app/api/webhook/route.ts
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export const runtime = 'edge';
 
 function getDB(request: NextRequest): any {
+  try {
+    const ctx = getRequestContext();
+    if (ctx.env && (ctx.env as any).DB) return (ctx.env as any).DB;
+  } catch (e) {}
+
   const db = (request as any).cf?.env?.DB;
   if (db) return db;
   if ((globalThis as any).DB) return (globalThis as any).DB;
