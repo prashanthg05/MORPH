@@ -31,9 +31,9 @@ async function verifySignature(body: string, signature: string, secret: string):
 
     const signatureBuffer = await crypto.subtle.sign('HMAC', key, data);
     const hashArray = Array.from(new Uint8Array(signatureBuffer));
-    const hashBase64 = btoa(String.fromCharCode.apply(null, hashArray));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-    return signature === hashBase64;
+    return signature === hashHex;
   } catch {
     return false;
   }
