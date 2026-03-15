@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ShoppingBag, Maximize, Zap, X, Truck, User, Mail, 
   MapPin, Phone, Calendar, Trash2, Star, ChevronRight, ChevronLeft,
-  LayoutDashboard, PackageCheck, PackageSearch, IndianRupee, TrendingUp, Filter, Lock, Plus, PlusCircle, Database, Image as ImageIcon, Upload, CheckCircle2, AlertCircle, ShoppingCart, BarChart3
+  LayoutDashboard, PackageCheck, PackageSearch, IndianRupee, TrendingUp, Filter, Lock, Plus, PlusCircle, Database, Image as ImageIcon, Upload, CheckCircle2, AlertCircle, ShoppingCart, BarChart3, RefreshCw
 } from 'lucide-react';
 
 // --- TYPES ---
@@ -115,6 +115,22 @@ export default function Home() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  const refreshDashboard = async () => {
+    triggerToast("⏳ Syncing...");
+    try {
+      const res = await fetch('/api/admin');
+      const dbData = await res.json();
+      
+      if (dbData.products && dbData.products.length > 0) setProducts(dbData.products);
+      if (dbData.categories && dbData.categories.length > 0) setCategories(dbData.categories);
+      if (dbData.orders) setOrders(dbData.orders);
+      
+      triggerToast("✅ Data Synced!");
+    } catch (e) {
+      triggerToast("❌ Sync Failed");
+    }
+  };
 
   useEffect(() => {
     if (isLoaded) {
@@ -403,7 +419,10 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <header className="flex justify-between items-center mb-12 border-b border-white/5 pb-6">
             <h1 className="text-3xl font-black italic uppercase text-[#6f01ff] flex items-center gap-3"><LayoutDashboard /> Admin Hub</h1>
-            <button onClick={() => setView('landing')} className="bg-white/10 px-8 py-3 rounded-full text-xs font-black uppercase hover:bg-white hover:text-black transition-all shadow-xl">Exit</button>
+            <div className="flex items-center gap-4">
+               <button onClick={refreshDashboard} className="bg-white/5 p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all" title="Refresh Data"><RefreshCw size={20}/></button>
+               <button onClick={() => setView('landing')} className="bg-white/10 px-8 py-3 rounded-full text-xs font-black uppercase hover:bg-white hover:text-black transition-all shadow-xl">Exit</button>
+            </div>
           </header>
 
           {/* DASHBOARD STATS */}
