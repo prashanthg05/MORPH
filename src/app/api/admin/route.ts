@@ -1,5 +1,5 @@
-// ✅ CORRECT - src/app/api/admin/route.ts
-// For Cloudflare Pages + D1 (proper way!)
+// ✅ FINAL - src/app/api/admin/route.ts
+// Try ALL possible ways to access D1 on Cloudflare Pages
 
 import { NextResponse, type NextRequest } from 'next/server';
 
@@ -7,38 +7,36 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const runtime = 'edge';
 
-// On Cloudflare Pages, we need to access D1 from the request context
-// The D1 binding is attached to the request in the cf object
 function getDB(request: NextRequest): any {
-  // The correct way to access D1 on Cloudflare Pages:
-  // It's in request.cf.env.DB (in the Cloudflare Pages Functions environment)
-  
-  const db = (request as any).cf?.env?.DB;
-  
-  if (db) {
-    console.log('✅ Found D1 in request.cf.env.DB');
-    return db;
+  console.log('🔍 Looking for D1...');
+
+  // Method 1: request.cf.env.DB (standard for Pages Functions)
+  if ((request as any).cf?.env?.DB) {
+    console.log('✅ Found DB in request.cf.env.DB');
+    return (request as any).cf.env.DB;
   }
 
-  // Fallback: Try globalThis (in case it was injected some other way)
+  // Method 2: globalThis.DB (might be injected)
   if ((globalThis as any).DB) {
-    console.log('✅ Found D1 in globalThis');
+    console.log('✅ Found DB in globalThis.DB');
     return (globalThis as any).DB;
   }
 
-  // Last resort: try process.env
-  if ((globalThis as any).__d1__ ) {
-    console.log('✅ Found D1 in globalThis.__d1__');
-    return (globalThis as any).__d1__;
+  // Method 3: request.env (alternate path)
+  if ((request as any).env?.DB) {
+    console.log('✅ Found DB in request.env.DB');
+    return (request as any).env.DB;
   }
 
-  console.error('❌ D1 not found in request.cf.env.DB');
-  console.error('Request CF object keys:', Object.keys((request as any).cf || {}));
-  if ((request as any).cf?.env) {
-    console.error('Request CF env keys:', Object.keys((request as any).cf.env));
+  // Method 4: Check what's actually available
+  console.error('❌ D1 not found. Debugging info:');
+  console.error('request.cf keys:', Object.keys((request as any).cf || {}));
+  if ((request as any).cf) {
+    console.error('request.cf.env keys:', Object.keys((request as any).cf.env || {}));
   }
+  console.error('globalThis keys with DB:', Object.keys(globalThis).filter(k => k.includes('DB')));
 
-  throw new Error('D1 Database not available in request.cf.env.DB');
+  throw new Error('D1 Database binding not found. Check Cloudflare Pages D1 Bindings configuration.');
 }
 
 export async function GET(request: NextRequest) {
@@ -149,7 +147,7 @@ export async function POST(request: NextRequest) {
     }
   }
   catch (error: any) {
-    console.error(`❌ POST Error [${action}]:`, error.message);
+    console.error(`❌ ${action}:`, error.message);
     return NextResponse.json({ error: error.message, action }, { status: 500 });
   }
 }
