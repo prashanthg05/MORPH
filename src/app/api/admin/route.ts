@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
 
     const products = await db.prepare('SELECT * FROM products').all();
     const categories = await db.prepare('SELECT * FROM categories').all();
-    const orders = await db.prepare('SELECT * FROM orders ORDER BY date DESC').all();
+    const orders = await db.prepare("SELECT * FROM orders WHERE status != 'Awaiting Payment' ORDER BY date DESC").all();
 
     console.log(`✅ Fetched: ${products.results?.length || 0} products, ${categories.results?.length || 0} categories`);
 

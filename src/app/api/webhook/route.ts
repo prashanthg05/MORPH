@@ -54,12 +54,12 @@ export async function POST(request: NextRequest) {
     const db = getDB(request);
 
     if (event.event === 'payment.authorized' || event.event === 'payment.captured') {
-      const orderId = event.payload?.payment?.entity?.notes?.order_id;
+      const orderId = event.payload?.payment?.entity?.order_id || event.payload?.payment?.entity?.notes?.order_id;
       if (orderId) {
         await db.prepare('UPDATE orders SET status = ? WHERE id = ?')
-          .bind('Payment Done', orderId)
+          .bind('Pending', orderId)
           .run();
-        console.log('✅ Order updated:', orderId);
+        console.log('✅ Order updated to Pending:', orderId);
       }
     }
 
