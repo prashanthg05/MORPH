@@ -53,14 +53,38 @@ export async function POST(request: NextRequest) {
     const event = JSON.parse(body);
     const db = getDB(request);
 
-    if (event.event === 'payment.authorized' || event.event === 'payment.captured') {
-      const orderId = event.payload?.payment?.entity?.order_id || event.payload?.payment?.entity?.notes?.order_id;
+    // Razorpay sends various events. We need to catch when payment is successful.
+    if (
+      event.event === 'payment.captured' || 
+      event.event === 'payment.authorized' ||
+      event.event === 'order.paid'
+    ) {
+      // The order_id can be located in different places depending on the event fired.
+      const payload = event.payload || {};
+      
+      let orderId = null;
+
+      // Check payment entity
+      if (payload.payment?.entity) {
+         orderId = payload.payment.entity.order_id || payload.payment.entity.notes?.order_id;
+      }
+      
+      // Check order entity (if order.paid event)
+      if (!orderId && payload.order?.entity) {
+         orderId = payload.order.entity.id || payload.order.entity.notes?.order_id;
+      }
+
       if (orderId) {
+        console.log('✅ Webhook extracting orderId:', orderId);
         await db.prepare('UPDATE orders SET status = ? WHERE id = ?')
           .bind('Pending', orderId)
           .run();
-        console.log('✅ Order updated to Pending:', orderId);
+        console.log(`✅ Order ${orderId} successfully marked as Pending in DB.`);
+      } else {
+        console.error('❌ Webhook received event but could not find orderId in payload.', JSON.stringify(payload));
       }
+    } else {
+        console.log(`ℹ️ Webhook received unhandled event: ${event.event}`);
     }
 
     return NextResponse.json({ success: true });
