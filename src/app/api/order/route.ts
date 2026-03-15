@@ -21,7 +21,7 @@ function getDB(request: NextRequest): any {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { amount, items, customer, email, phone, address, city, state, pincode } = body;
+    const { amount, items, fullItems, customer, email, phone, address, city, state, pincode } = body;
 
     const db = getDB(request);
 
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       'INSERT INTO orders (id, customer, phone, email, address, city, state, pincode, amount, status, date, items, fullItems) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).bind(
       orderId, customer || '', phone || '', email || '', address || '', city || '', state || '', pincode || '',
-      amount || 0, 'Awaiting Payment', date, JSON.stringify(items || []), JSON.stringify(items || [])
+      amount || 0, 'Awaiting Payment', date, JSON.stringify(items || []), JSON.stringify(fullItems || [])
     ).run();
 
     console.log('✅ Order created:', orderId);
