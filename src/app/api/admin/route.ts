@@ -114,29 +114,29 @@ export async function POST(request: NextRequest) {
     }
 
     else if (action === 'DELETE_PRODUCT') {
-      await db.prepare('DELETE FROM products WHERE CAST(id AS TEXT) = CAST(? AS TEXT)').bind(payload.id).run();
+      await db.prepare('DELETE FROM products WHERE id = ?').bind(payload.id).run();
       return NextResponse.json({ success: true, action });
     }
 
     else if (action === 'TOGGLE_STOCK') {
-      await db.prepare('UPDATE products SET stock = ? WHERE CAST(id AS TEXT) = CAST(? AS TEXT)')
+      await db.prepare('UPDATE products SET stock = ? WHERE id = ?')
         .bind(payload.stock, payload.id).run();
       return NextResponse.json({ success: true, action });
     }
 
     else if (action === 'DELETE_CATEGORY') {
-      await db.prepare('DELETE FROM categories WHERE CAST(name AS TEXT) = CAST(? AS TEXT)').bind(payload.name).run();
+      await db.prepare('DELETE FROM categories WHERE name = ?').bind(payload.name).run();
       return NextResponse.json({ success: true, action });
     }
 
     else if (action === 'UPDATE_ORDER_STATUS') {
-      await db.prepare('UPDATE orders SET status = ? WHERE CAST(id AS TEXT) = CAST(? AS TEXT)')
+      await db.prepare('UPDATE orders SET status = ? WHERE id = ?')
         .bind(payload.status, payload.id).run();
       return NextResponse.json({ success: true, action });
     }
 
     else if (action === 'DELETE_ORDER') {
-      await db.prepare('DELETE FROM orders WHERE CAST(id AS TEXT) = CAST(? AS TEXT)').bind(payload.id).run();
+      await db.prepare('DELETE FROM orders WHERE id = ?').bind(payload.id).run();
       return NextResponse.json({ success: true, action });
     }
 

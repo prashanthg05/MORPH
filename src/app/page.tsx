@@ -94,8 +94,11 @@ export default function Home() {
         const res = await fetch('/api/admin');
         const dbData = await res.json();
         
-        if (dbData.products) setProducts(dbData.products);
-        if (dbData.categories) setCategories(dbData.categories);
+        if (dbData.products && dbData.products.length > 0) setProducts(dbData.products);
+        else setProducts([{ id: 1, name: 'VECNA BUST', price: 'INR 449.00', tag: 'TOP SELLING', category: 'Stranger Things', imgs: ['/Strangerthings1.jpeg'], dimensions: '14.2cm H', stock: 'AVAILABLE', description: 'Terrifyingly detailed bust of the Curse of Hawkins.', reviews: [{user: "Arjun_X", rating: 5, comment: "Insane detail on the tentacles!"}] }]);
+        
+        if (dbData.categories && dbData.categories.length > 0) setCategories(dbData.categories);
+        else setCategories([{ name: 'Stranger Things', banner: '/Strangerthings1.jpeg' }, { name: 'Breaking Bad', banner: '/BrBa3.jpeg' }, { name: 'The Office', banner: '/Theoffice2.jpeg' }]);
         
         if (dbData.orders) setOrders(dbData.orders);
       } catch (e) {
@@ -119,8 +122,8 @@ export default function Home() {
       const res = await fetch('/api/admin');
       const dbData = await res.json();
       
-      if (dbData.products) setProducts(dbData.products);
-      if (dbData.categories) setCategories(dbData.categories);
+      if (dbData.products && dbData.products.length > 0) setProducts(dbData.products);
+      if (dbData.categories && dbData.categories.length > 0) setCategories(dbData.categories);
       if (dbData.orders) setOrders(dbData.orders);
       
       triggerToast("✅ Data Synced!");
@@ -263,6 +266,8 @@ export default function Home() {
 
 
   const deleteCategory = async (catName: string) => {
+    if (categories.length <= 1) return triggerToast("❌ Keep 1 category");
+    
     triggerToast("⏳ Deleting...");
     
     const synced = await syncAdmin('DELETE_CATEGORY', { name: catName });
@@ -270,10 +275,6 @@ export default function Home() {
     if (synced) {
         setCategories(categories.filter(c => c.name !== catName));
         setProducts(products.filter(p => p.category !== catName));
-        // Reset active category if deleted
-        if (activeCategory === catName) {
-            setActiveCategory(categories.length > 1 ? categories.filter(c => c.name !== catName)[0].name : '');
-        }
         triggerToast(`✅ ${catName} Deleted`);
     } else {
         triggerToast("❌ Failed to delete");
