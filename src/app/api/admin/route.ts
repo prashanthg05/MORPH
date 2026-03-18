@@ -51,16 +51,18 @@ function verifyAdmin(request: NextRequest): boolean {
 
 export async function GET(request: NextRequest) {
   try {
-    if (!verifyAdmin(request)) {
-      return NextResponse.json({ error: 'Unauthorized Access' }, { status: 401 });
-    }
     console.log('📨 GET /api/admin');
 
     const db = getDB(request);
+    const isAdmin = verifyAdmin(request);
 
     const products = await db.prepare('SELECT * FROM products').all();
     const categories = await db.prepare('SELECT * FROM categories').all();
-    const orders = await db.prepare("SELECT * FROM orders WHERE status != 'Awaiting Payment' ORDER BY date DESC").all();
+    
+    let orders: any = { results: [] };
+    if (isAdmin) {
+       orders = await db.prepare("SELECT * FROM orders WHERE status != 'Awaiting Payment' ORDER BY date DESC").all();
+    }
 
     console.log(`✅ Fetched: ${products.results?.length || 0} products, ${categories.results?.length || 0} categories`);
 

@@ -23,6 +23,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { amount, items, fullItems, customer, email, phone, address, city, state, pincode } = body;
 
+    // Strict backend validation for delivery info
+    if (!customer || !email || !phone || !address || !city || !state || !pincode) {
+        throw new Error('Incomplete customer delivery information provided.');
+    }
+
     const db = getDB(request);
 
     // SECURE PRICE CALCULATION
