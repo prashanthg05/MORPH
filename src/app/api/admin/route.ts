@@ -42,8 +42,18 @@ function getDB(request: NextRequest): any {
   throw new Error('D1 Database binding not found. Check Cloudflare Pages D1 Bindings configuration.');
 }
 
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1";
+
+function verifyAdmin(request: NextRequest): boolean {
+  const pass = request.headers.get('x-admin-password');
+  return pass === ADMIN_PASSWORD;
+}
+
 export async function GET(request: NextRequest) {
   try {
+    if (!verifyAdmin(request)) {
+      return NextResponse.json({ error: 'Unauthorized Access' }, { status: 401 });
+    }
     console.log('📨 GET /api/admin');
 
     const db = getDB(request);
@@ -83,6 +93,9 @@ export async function POST(request: NextRequest) {
   let action = 'UNKNOWN';
 
   try {
+    if (!verifyAdmin(request)) {
+      return NextResponse.json({ error: 'Unauthorized Access' }, { status: 401 });
+    }
     const body = await request.json();
     action = body.action;
     const { payload } = body;
