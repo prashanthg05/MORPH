@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ShoppingBag, Maximize, Zap, X, Truck, User, Mail, 
   MapPin, Phone, Calendar, Trash2, Star, ChevronRight, ChevronLeft,
-  LayoutDashboard, PackageCheck, PackageSearch, IndianRupee, TrendingUp, Filter, Lock, Plus, PlusCircle, Database, Image as ImageIcon, Upload, CheckCircle2, AlertCircle, ShoppingCart, BarChart3, RefreshCw
+  LayoutDashboard, PackageCheck, PackageSearch, IndianRupee, TrendingUp, Filter, Lock, Plus, PlusCircle, Database, Image as ImageIcon, Upload, CheckCircle2, AlertCircle, ShoppingCart, BarChart3, RefreshCw, Instagram
 } from 'lucide-react';
 
 // --- TYPES ---
@@ -80,7 +80,7 @@ export default function Home() {
       triggerToast(`❌ Error: ${e.message}`);
       return false;
     }
-};
+  };
 
   // --- 2. LOADING LOGIC ---
   useEffect(() => {
@@ -156,15 +156,12 @@ export default function Home() {
     if (!files) return;
     
     Array.from(files).forEach(file => {
-      // Create an image object to draw to Canvas for compression
       const img = new Image();
       const objectUrl = URL.createObjectURL(file);
       
       img.onload = () => {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
-          
-          // Max dimensions (Cloudflare D1 column limit saver)
           const MAX_WIDTH = 800;
           const MAX_HEIGHT = 800;
           let width = img.width;
@@ -185,34 +182,26 @@ export default function Home() {
           canvas.width = width;
           canvas.height = height;
           ctx?.drawImage(img, 0, 0, width, height);
-
-          // Compress to webp at 60% quality. This dramatically reduces file size from MBs to KBs
           const compressedBase64 = canvas.toDataURL('image/webp', 0.6);
-          URL.revokeObjectURL(objectUrl); // Clean up memory
+          URL.revokeObjectURL(objectUrl);
 
           if (target === 'product') {
-              setLocalImgs(prev => {
-                  const updated = [...prev, compressedBase64];
-                  return updated.slice(0, 4);
-              });
+            setLocalImgs(prev => {
+                const updated = [...prev, compressedBase64];
+                return updated.slice(0, 4);
+            });
           } else {
               setNewCatBanner(compressedBase64);
           }
       };
-      
       img.src = objectUrl;
     });
-    
     e.target.value = ''; 
   };
 
   const handleUploadProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!newProd.name.trim()) {
-      triggerToast("❌ Need product name");
-      return;
-    }
+    if (!newProd.name.trim()) return triggerToast("❌ Need product name");
     
     const createdProduct: Product = {
         id: Date.now(),
@@ -228,56 +217,35 @@ export default function Home() {
     };
     
     triggerToast("⏳ Deploying...");
-    
-    // IMPORTANT: TRY DATABASE FIRST
     const synced = await syncAdmin('ADD_PRODUCT', createdProduct);
-    
     if (synced) {
         setProducts([createdProduct, ...products]);
         setNewProd({ ...newProd, name: '', desc: '', size: '', price: '' });
         setLocalImgs([]);
         triggerToast("✅ Artifact Deployed!");
-    } else {
-        triggerToast("❌ Failed to deploy");
     }
   };
 
   const handleAddCategory = async () => {
-    if (!newCatName.trim() || !newCatBanner) {
-      return triggerToast("❌ Need Name & Banner");
-    }
-    
+    if (!newCatName.trim() || !newCatBanner) return triggerToast("❌ Need Name & Banner");
     triggerToast("⏳ Creating...");
-    
     const newCat = { name: newCatName, banner: newCatBanner };
-    
-    // IMPORTANT: TRY DATABASE FIRST
     const synced = await syncAdmin('ADD_CATEGORY', newCat);
-    
     if (synced) {
         setCategories([...categories, newCat]);
-        setNewCatName('');
-        setNewCatBanner('');
+        setNewCatName(''); setNewCatBanner('');
         triggerToast("✅ Series Created!");
-    } else {
-        triggerToast("❌ Failed to create");
     }
   };
 
-
   const deleteCategory = async (catName: string) => {
     if (categories.length <= 1) return triggerToast("❌ Keep 1 category");
-    
     triggerToast("⏳ Deleting...");
-    
     const synced = await syncAdmin('DELETE_CATEGORY', { name: catName });
-    
     if (synced) {
         setCategories(categories.filter(c => c.name !== catName));
         setProducts(products.filter(p => p.category !== catName));
         triggerToast(`✅ ${catName} Deleted`);
-    } else {
-        triggerToast("❌ Failed to delete");
     }
   };
 
@@ -300,7 +268,6 @@ export default function Home() {
             })
         });
         const orderData = await res.json();
-
         if (orderData.error) throw new Error("Order init failed");
 
         const options = {
@@ -318,7 +285,6 @@ export default function Home() {
                     date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
                     status: 'Pending', pincode: pincode
                 };
-                
                 setOrders(prev => [newOrder, ...prev.filter(o => o.id !== orderData.id)]); 
                 setCartItems([]);
                 setIsCartOpen(false);
@@ -327,26 +293,18 @@ export default function Home() {
             },
             theme: { color: "#6f01ff" }
         };
-
         const rzp = new (window as any).Razorpay(options);
         rzp.open();
-
     } catch (error) {
-        triggerToast("Payment initialization failed. Check console.");
-        console.error(error);
+        triggerToast("Checkout failed.");
     }
   };
 
   const updateOrderStatus = async (id: string, newStatus: Order['status']) => {
-    triggerToast("⏳ Updating...");
-    
     const synced = await syncAdmin('UPDATE_ORDER_STATUS', { id, status: newStatus });
-    
     if (synced) {
         setOrders(orders.map(o => o.id === id ? { ...o, status: newStatus } : o));
         triggerToast(`✅ Status: ${newStatus}`);
-    } else {
-        triggerToast("❌ Failed to update");
     }
   };
 
@@ -359,43 +317,26 @@ export default function Home() {
   };
 
   const deleteProduct = async (id: number) => {
-    triggerToast("⏳ Deleting...");
-    
     const synced = await syncAdmin('DELETE_PRODUCT', { id });
-    
     if (synced) {
         setProducts(products.filter(p => p.id !== id));
         triggerToast("✅ Artifact Deleted");
-    } else {
-        triggerToast("❌ Failed to delete");
     }
   };
   
   const clearAllOrders = async () => {
-    if (orders.length === 0) return triggerToast("❌ No orders");
-    
-    triggerToast("⏳ Clearing...");
-    
     const synced = await syncAdmin('CLEAR_ORDERS');
-    
     if (synced) {
         setOrders([]);
         triggerToast("✅ Orders cleared");
-    } else {
-        triggerToast("❌ Failed");
     }
   };
 
   const deleteOrder = async (id: string) => {
-    triggerToast("⏳ Deleting...");
-    
     const synced = await syncAdmin('DELETE_ORDER', { id });
-    
     if (synced) {
         setOrders(orders.filter(ord => ord.id !== id));
         triggerToast("✅ Order deleted");
-    } else {
-        triggerToast("❌ Failed");
     }
   };
 
@@ -416,31 +357,18 @@ export default function Home() {
   const prevRev = () => { if (selectedProduct) setCurrentRevIdx((prev) => (prev - 1 + (selectedProduct.reviews.length || 1)) % (selectedProduct.reviews.length || 1)); };
 
   const storeProducts = useMemo(() => products.filter(p => p.category === activeCategory), [products, activeCategory]);
-  
-  const totalPrice = cartItems.reduce((acc, item) => {
-    const val = item.price.replace(/[^0-9.]/g, '');
-    return acc + parseFloat(val || '0');
-  }, 0);
-
+  const totalPrice = cartItems.reduce((acc, item) => acc + parseFloat(item.price.replace(/[^0-9.]/g, '') || '0'), 0);
   const totalRevenue = orders.reduce((acc, order) => acc + order.amount, 0);
 
   const displayOrders = useMemo(() => {
     return orders.filter(o => orderFilter === 'Pending' ? ['Pending', 'Packed', 'Awaiting Payment'].includes(o.status) : ['Shipped', 'Fulfilled'].includes(o.status));
   }, [orders, orderFilter]);
 
-  const allFieldsFilled = Boolean(
-    formData.name.trim() && 
-    formData.number.trim() && 
-    formData.mail.trim() && 
-    formData.address.trim() && 
-    formData.city.trim() && 
-    formData.state.trim() && 
-    pincode.length === 6 && 
-    cartItems.length > 0
-  );
+  const allFieldsFilled = Boolean(formData.name.trim() && formData.number.trim() && formData.mail.trim() && formData.address.trim() && formData.city.trim() && formData.state.trim() && pincode.length === 6 && cartItems.length > 0);
 
   if (!isLoaded) return <div className="bg-black min-h-screen flex items-center justify-center text-[#6f01ff] font-black uppercase tracking-[2em]">Morphing...</div>;
-  // --- 4. ADMIN VIEW (With Dashboard) ---
+
+  // --- 4. ADMIN VIEW ---
   if (view === 'admin') {
     return (
       <div className="bg-[#050505] min-h-screen text-white p-6 md:p-12 font-sans animate-fade">
@@ -448,12 +376,11 @@ export default function Home() {
           <header className="flex justify-between items-center mb-12 border-b border-white/5 pb-6">
             <h1 className="text-3xl font-black italic uppercase text-[#6f01ff] flex items-center gap-3"><LayoutDashboard /> Admin Hub</h1>
             <div className="flex items-center gap-4">
-               <button onClick={refreshDashboard} className="bg-white/5 p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all" title="Refresh Data"><RefreshCw size={20}/></button>
+               <button onClick={refreshDashboard} className="bg-white/5 p-3 rounded-full text-white/50 hover:text-white transition-all"><RefreshCw size={20}/></button>
                <button onClick={() => setView('landing')} className="bg-white/10 px-8 py-3 rounded-full text-xs font-black uppercase hover:bg-white hover:text-black transition-all shadow-xl">Exit</button>
             </div>
           </header>
 
-          {/* DASHBOARD STATS */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
             <div className="bg-zinc-900 p-8 rounded-[2.5rem] border border-white/5">
                 <IndianRupee className="text-[#6f01ff] mb-2" size={20} />
@@ -478,7 +405,6 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-            {/* UPLOAD PANEL */}
             <div className="lg:col-span-4 space-y-8">
                 <div className="bg-zinc-900 border border-white/5 p-8 rounded-[3rem] shadow-xl">
                     <h2 className="text-sm font-black uppercase italic mb-6 text-[#6f01ff]">New Artifact</h2>
@@ -492,7 +418,7 @@ export default function Home() {
                             <input type="text" placeholder="SIZE" className="bg-black border border-white/10 rounded-2xl py-4 px-6 text-xs font-bold" value={newProd.size} onChange={(e)=>setNewProd({...newProd, size: e.target.value})}/>
                             <input type="number" placeholder="PRICE" className="bg-black border border-white/10 rounded-2xl py-4 px-6 text-xs font-bold" value={newProd.price} onChange={(e)=>setNewProd({...newProd, price: e.target.value})}/>
                         </div>
-                        <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-white/5 border-dashed rounded-2xl cursor-pointer hover:bg-white/5 transition-all">
+                        <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-white/5 border-dashed rounded-2xl cursor-pointer hover:bg-white/5">
                             <ImageIcon size={20} className="opacity-20 mb-1"/>
                             <p className="text-[9px] font-bold opacity-30 uppercase">Images ({localImgs.length}/4)</p>
                             <input type="file" multiple accept="image/*" className="hidden" onChange={(e)=>handleFileChange(e, 'product')}/>
@@ -501,130 +427,66 @@ export default function Home() {
                     </form>
                 </div>
 
-                {/* SERIES CONTROL */}
                 <div className="bg-zinc-900 border border-white/5 p-8 rounded-[3rem] shadow-xl">
-                    <h2 className="text-sm font-black uppercase italic mb-6 text-red-500">Active Collections</h2>
-                    
+                    <h2 className="text-sm font-black uppercase italic mb-6 text-red-500">Series Control</h2>
                     <div className="mb-6 space-y-3 bg-black/20 p-4 rounded-2xl border border-white/5">
-                        <input type="text" placeholder="NEW SERIES NAME" className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:border-[#6f01ff] transition-all" value={newCatName} onChange={(e)=>setNewCatName(e.target.value)}/>
-                        <label htmlFor="category-banner" className="flex items-center justify-center w-full h-10 border border-white/10 border-dashed rounded-xl cursor-pointer hover:bg-white/5 transition-all">
-                            <span className="text-[9px] font-bold opacity-50 uppercase">{newCatBanner ? 'Banner Uploaded ✓' : 'Upload Banner Image'}</span>
-                            <input 
-                             type="text" 
-                             placeholder="IMAGE NAME (e.g., /Strangerthings1.jpeg)" 
-                             className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:border-[#6f01ff] transition-all" 
-                             value={newCatBanner} 
-                             onChange={(e)=>setNewCatBanner(e.target.value)}
-                            />
-                        </label>
-                        <button onClick={handleAddCategory} className="w-full bg-[#6f01ff] text-white py-3 rounded-xl font-black uppercase italic text-[10px] tracking-widest hover:scale-[1.02] transition-all">Create Series</button>
+                        <input type="text" placeholder="NAME" className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:border-[#6f01ff]" value={newCatName} onChange={(e)=>setNewCatName(e.target.value)}/>
+                        <input type="text" placeholder="BANNER PATH" className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:border-[#6f01ff]" value={newCatBanner} onChange={(e)=>setNewCatBanner(e.target.value)}/>
+                        <button onClick={handleAddCategory} className="w-full bg-[#6f01ff] text-white py-3 rounded-xl font-black uppercase text-[10px]">Create</button>
                     </div>
-
                     <div className="space-y-3">
                         {categories.map(cat => (
                             <div key={cat.name} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
                                 <span className="text-[10px] font-black uppercase tracking-widest">{cat.name}</span>
-                                <button onClick={()=>deleteCategory(cat.name)} className="text-red-500/30 hover:text-red-500 transition-colors p-2"><Trash2 size={16}/></button>
+                                <button onClick={()=>deleteCategory(cat.name)} className="text-red-500/30 hover:text-red-500 p-2 transition-colors"><Trash2 size={16}/></button>
                             </div>
                         ))}
-                        {categories.length === 0 && <p className="text-[10px] uppercase opacity-30 text-center py-4 font-bold">No collections found</p>}
                     </div>
                 </div>
             </div>
 
-            {/* ORDER PIPELINE TABLE */}
             <div className="lg:col-span-8 space-y-8">
                 <div className="bg-zinc-900 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl">
-                    <div className="p-8 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
-                        <h2 className="text-sm font-black uppercase italic tracking-widest">Order Pipeline</h2>
-                        <div className="flex gap-2">
-                           <button onClick={clearAllOrders} className="text-[9px] font-bold opacity-20 hover:opacity-100 uppercase">Clear All</button>
-                        </div>
-                    </div>
-
-                    {/* Filter Tabs */}
+                    <div className="p-8 border-b border-white/5 bg-white/[0.02] flex justify-between items-center"><h2 className="text-sm font-black uppercase italic tracking-widest">Order Pipeline</h2></div>
                     <div className="px-8 pt-6 flex gap-4">
-                        <button onClick={() => setOrderFilter('Pending')} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${orderFilter === 'Pending' ? 'bg-[#6f01ff] text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}>Pending / Packed</button>
-                        <button onClick={() => setOrderFilter('Completed')} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${orderFilter === 'Completed' ? 'bg-green-500 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}>Shipped</button>
+                        <button onClick={() => setOrderFilter('Pending')} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase transition-all ${orderFilter === 'Pending' ? 'bg-[#6f01ff]' : 'bg-white/5 text-white/40'}`}>Pending</button>
+                        <button onClick={() => setOrderFilter('Completed')} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase transition-all ${orderFilter === 'Completed' ? 'bg-green-500' : 'bg-white/5 text-white/40'}`}>Completed</button>
                     </div>
-
                     <div className="overflow-x-auto mt-4">
                         <table className="w-full text-left text-xs">
                             <thead className="bg-white/5 uppercase text-[9px] font-black opacity-40">
-                                <tr className="border-b border-white/5">
-                                    <th className="p-6">ID & Status</th>
-                                    <th className="p-6">Customer Info</th>
-                                    <th className="p-6">Items Purchased</th>
-                                    <th className="p-6">Amount</th>
-                                    <th className="p-6 text-right">Action</th>
-                                </tr>
+                                <tr className="border-b border-white/5"><th className="p-6">Status</th><th className="p-6">Customer</th><th className="p-6">Amount</th><th className="p-6 text-right">Action</th></tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
                                 {displayOrders.map(o => (
                                     <tr key={o.id} className="hover:bg-white/[0.01]">
                                         <td className="p-6">
                                             <p className="font-mono text-[#6f01ff] font-bold mb-2">{o.id}</p>
-                                            <select 
-                                                value={o.status} 
-                                                onChange={(e) => updateOrderStatus(o.id, e.target.value as Order['status'])}
-                                                className={`bg-black border border-white/10 rounded-lg p-2 text-[10px] font-black uppercase outline-none cursor-pointer ${o.status === 'Shipped' ? 'text-green-400' : o.status === 'Packed' ? 'text-yellow-400' : o.status === 'Awaiting Payment' ? 'text-red-400' : 'text-white'}`}
-                                            >
-                                                <option value="Awaiting Payment">Awaiting Payment</option>
-                                                <option value="Pending">Pending</option>
-                                                <option value="Packed">Packed</option>
-                                                <option value="Shipped">Shipped</option>
+                                            <select value={o.status} onChange={(e) => updateOrderStatus(o.id, e.target.value as Order['status'])} className="bg-black border border-white/10 rounded-lg p-2 text-[10px] font-black uppercase outline-none">
+                                                <option value="Pending">Pending</option><option value="Shipped">Shipped</option><option value="Fulfilled">Fulfilled</option>
                                             </select>
                                         </td>
-                                        <td className="p-6">
-                                            <p className="font-black uppercase italic mb-1">{o.customer}</p>
-                                            <p className="text-[10px] text-[#6f01ff] font-bold mb-1">{o.email} • {o.phone}</p>
-                                            <p className="text-[9px] opacity-50 max-w-[200px] leading-relaxed">{o.address}, {o.city}, {o.state} - {o.pincode}</p>
-                                            <p className="text-[8px] opacity-30 mt-2">{o.date}</p>
-                                        </td>
-                                        <td className="p-6">
-                                            <span className="text-[10px] font-black uppercase opacity-60 mb-2 block">{o.items.length} items</span>
-                                            <div className="space-y-1">
-                                                {o.fullItems ? o.fullItems.map((item, i) => (
-                                                    <div key={i} className="text-[9px] text-white/60 flex items-center gap-2">
-                                                        <span className="w-1 h-1 bg-[#6f01ff] rounded-full"></span>
-                                                        <span className="truncate max-w-[150px]">{item.name}</span>
-                                                        <span className="opacity-50">({item.dimensions})</span>
-                                                    </div>
-                                                )) : (
-                                                    o.items.map((item, i) => (
-                                                        <div key={i} className="text-[9px] text-white/60 flex items-center gap-2">
-                                                            <span className="w-1 h-1 bg-[#6f01ff] rounded-full"></span>{item}
-                                                        </div>
-                                                    ))
-                                                )}
-                                            </div>
-                                        </td>
+                                        <td className="p-6"><p className="font-black uppercase italic">{o.customer}</p><p className="text-[9px] opacity-40">{o.email}</p></td>
                                         <td className="p-6 font-black">₹{o.amount.toFixed(2)}</td>
-                                        <td className="p-6 text-right">
-                                            <button onClick={()=>deleteOrder(o.id)} className="text-red-500/50 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
-                                        </td>
+                                        <td className="p-6 text-right"><button onClick={()=>deleteOrder(o.id)} className="text-red-500/50 hover:text-red-500 transition-colors"><Trash2 size={16}/></button></td>
                                     </tr>
                                 ))}
-                                {displayOrders.length === 0 && (
-                                    <tr><td colSpan={5} className="p-20 text-center opacity-20 font-black uppercase italic tracking-widest">Pipeline Empty</td></tr>
-                                )}
+                                {displayOrders.length === 0 && <tr><td colSpan={4} className="p-12 text-center opacity-20 font-black uppercase italic">The pipeline is clear</td></tr>}
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                {/* INVENTORY TABLE */}
                 <div className="bg-zinc-900 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl">
                     <div className="p-8 border-b border-white/5 bg-white/[0.02] flex justify-between items-center"><h2 className="text-sm font-black uppercase italic tracking-widest">Inventory Management</h2></div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs">
-                            <thead className="bg-white/5 uppercase text-[9px] font-black opacity-40"><tr className="border-b border-white/5"><th className="p-6">Product</th><th className="p-6">Status</th><th className="p-6">Action</th></tr></thead>
                             <tbody className="divide-y divide-white/5">
                                 {products.map(p => (
                                     <tr key={p.id} className="hover:bg-white/[0.01]">
-                                        <td className="p-6"><div className="flex items-center gap-4"><img src={p.imgs[0]} className="w-10 h-10 rounded-lg object-cover" /><div><p className="font-black uppercase italic">{p.name}</p><p className="text-[9px] opacity-40 uppercase">{p.category}</p></div></div></td>
-                                        <td className="p-6"><button onClick={()=>toggleStock(p.id)} className={`px-3 py-1 rounded-full text-[9px] font-black uppercase transition-all ${p.stock==='AVAILABLE'?'bg-green-500/10 text-green-400':'bg-red-500/10 text-red-400'}`}>{p.stock}</button></td>
-                                        <td className="p-6"><button onClick={()=>deleteProduct(p.id)} className="text-red-500/30 hover:text-red-500 transition-colors"><Trash2 size={16}/></button></td>
+                                        <td className="p-6 font-black uppercase italic">{p.name}</td>
+                                        <td className="p-6"><button onClick={()=>toggleStock(p.id)} className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${p.stock==='AVAILABLE'?'bg-green-500/10 text-green-400':'bg-red-500/10 text-red-400'}`}>{p.stock}</button></td>
+                                        <td className="p-6 text-right"><button onClick={()=>deleteProduct(p.id)} className="text-red-500/30 hover:text-red-500 transition-colors"><Trash2 size={16}/></button></td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -637,7 +499,7 @@ export default function Home() {
       </div>
     );
   }
-  // --- 5. LANDING VIEW ---
+
   if (view === 'landing') {
     return (
       <div className="bg-black min-h-screen font-sans text-white overflow-x-hidden animate-fade">
@@ -654,9 +516,7 @@ export default function Home() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent z-20" />
                 <div className="absolute bottom-12 left-12 z-30">
                   <h2 className={`font-black italic uppercase tracking-tighter leading-none drop-shadow-2xl text-white ${idx === 0 ? 'text-5xl md:text-8xl' : 'text-3xl md:text-4xl'}`}>{cat.name}</h2>
-                  <p className={`${idx === 0 ? 'text-[#6f01ff]' : 'text-white/40'} font-black tracking-[0.5em] uppercase mt-6 text-[10px] flex items-center gap-3`}>
-                    {hasStock ? <><span className="w-2 h-2 bg-[#6f01ff] rounded-full animate-ping" /> ENTER VOID</> : "DROPPING SOON"}
-                  </p>
+                  <p className="text-[#6f01ff] font-black tracking-[0.5em] uppercase mt-6 text-[10px] flex items-center gap-3"><span className="w-2 h-2 bg-[#6f01ff] rounded-full animate-ping" /> ENTER VOID</p>
                 </div>
               </div>
             )
@@ -664,16 +524,26 @@ export default function Home() {
         </div>
 
         <footer className="mt-40 p-24 text-center relative z-[200]">
-            <div className="inline-block group">
+            <div className="inline-block group mb-10">
                 <p className="text-[11px] font-black tracking-[1.5em] uppercase text-white/10 group-hover:text-[#6f01ff] transition-colors">Morph Studio × 2026</p>
                 <div className="h-px w-0 group-hover:w-full bg-[#6f01ff] transition-all duration-700 mx-auto mt-4 shadow-[0_0_10px_#6f01ff]" />
+            </div>
+
+            <div className="flex flex-col items-center justify-center space-y-6">
+                <a href="mailto:morphstudio3d@gmail.com" className="flex items-center space-x-3 text-white/30 hover:text-[#6f01ff] transition-all group">
+                    <Mail size={18} />
+                    <span className="text-[10px] font-black uppercase tracking-widest">morphstudio3d@gmail.com</span>
+                </a>
+                <a href="https://instagram.com/morphstudio.3d" target="_blank" className="p-4 bg-white/5 rounded-full text-white/30 hover:text-white hover:bg-[#6f01ff]/20 transition-all shadow-xl">
+                    <Instagram size={24} />
+                </a>
             </div>
         </footer>
         
         {showLogin && (
             <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 bg-black/95 backdrop-blur-sm animate-fade">
                 <div className="relative w-full max-w-sm bg-zinc-900 border border-[#6f01ff]/40 p-12 rounded-[3rem] shadow-2xl">
-                    <button onClick={()=>setShowLogin(false)} className="absolute top-8 right-8 text-white/20 hover:text-white"><X size={20}/></button>
+                    <button onClick={()=>setShowLogin(false)} className="absolute top-8 right-8 text-white/20 hover:text-white transition-all"><X size={20}/></button>
                     <div className="flex flex-col items-center mb-8"><Lock className="text-[#6f01ff] mb-4" size={32}/><h2 className="text-xl font-black italic uppercase tracking-widest text-white">ACCESS HUB</h2></div>
                     <form onSubmit={handleLogin} className="space-y-4">
                         <input type="text" placeholder="IDENTITY" className="w-full bg-black border border-white/10 rounded-2xl py-5 px-6 text-xs font-bold outline-none focus:border-[#6f01ff] uppercase" onChange={(e)=>setLoginCreds({...loginCreds, user: e.target.value})} />
@@ -683,19 +553,17 @@ export default function Home() {
                 </div>
             </div>
         )}
-        {toast && <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[1000] bg-white text-black px-12 py-5 rounded-full font-black uppercase italic text-xs shadow-2xl">{toast}</div>}
       </div>
     );
   }
 
-  // --- 6. STORE VIEW ---
   return (
     <main className="relative bg-[#050505] min-h-screen text-[#fff1f1] p-4 md:p-8 font-sans overflow-x-hidden animate-fade">
       <div className="fixed top-[-10%] left-[-10%] w-[70%] h-[70%] bg-[#6f01ff]/20 blur-[180px] animate-pulse pointer-events-none" />
       <div className="relative z-10 max-w-7xl mx-auto">
         <nav className="grid grid-cols-3 items-center mb-16 border-b border-[#6f01ff]/20 pb-10 backdrop-blur-xl sticky top-0 z-[100] pt-6">
           <div onClick={() => setView('landing')} className="flex justify-start text-[10px] font-black italic uppercase text-[#6f01ff] cursor-pointer hover:opacity-50 tracking-widest transition-all">← Back</div>
-          <div className="flex justify-center drop-shadow-[0_0_20px_rgba(111,1,255,0.4)]"><img src="/pruple_png_main.png" alt="Logo" className="h-24 md:h-40 w-auto object-contain animate-pulse" /></div>
+          <div className="flex justify-center drop-shadow-[0_0_20px_rgba(111,1,255,0.4)]"><img src="/pruple_png_main.png" alt="Logo" className="h-20 md:h-36 w-auto object-contain animate-pulse" /></div>
           <div className="flex justify-end"><button onClick={() => setIsCartOpen(true)} className="flex items-center space-x-4 bg-[#6f01ff] px-8 py-3 rounded-full text-white font-black hover:scale-105 transition-all shadow-[0_0_30px_rgba(111,1,255,0.5)]"><ShoppingBag size={20}/><span className="text-sm">{cartItems.length}</span></button></div>
         </nav>
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 mb-32">
@@ -703,7 +571,7 @@ export default function Home() {
             <div key={item.id} onClick={() => {setSelectedProduct(item); setCurrentImgIdx(0); setCurrentRevIdx(0);}} className={`group relative bg-zinc-900/40 backdrop-blur-3xl border border-white/5 p-7 rounded-[3.5rem] transition-all duration-700 cursor-pointer shadow-2xl overflow-hidden ${item.stock === 'OUT OF STOCK' ? 'opacity-50 grayscale' : 'hover:border-[#6f01ff]/60'}`}>
               <span className={`absolute top-10 left-10 z-10 text-white text-[10px] font-black px-4 py-2 rounded-full uppercase italic shadow-xl ${item.stock === 'OUT OF STOCK' ? 'bg-red-600' : 'bg-[#6f01ff]'}`}>{item.stock === 'OUT OF STOCK' ? 'SOLD OUT' : item.tag}</span>
               <div className="h-72 mb-8 rounded-[2.5rem] overflow-hidden bg-[#121212] border border-white/10 relative shadow-inner"><img src={item.imgs[0]} className="object-cover w-full h-full opacity-90 group-hover:scale-110 transition-all duration-1000" /></div>
-              <h3 className="text-2xl font-black uppercase italic text-white group-hover:text-[#6f01ff] transition-colors leading-none mb-3">{item.name}</h3>
+              <h3 className="text-2xl font-black uppercase italic text-white leading-none mb-3">{item.name}</h3>
               <div className="flex items-center space-x-3 text-white/30 font-bold uppercase text-[10px] tracking-widest leading-none"><Maximize size={12} /><span>{item.dimensions}</span></div>
               <div className="flex justify-between items-center mt-6 pt-6 border-t border-white/10"><p className="font-black text-white text-xl tracking-tighter">{item.price}</p><button className="text-[10px] font-black uppercase bg-white text-black px-6 py-2.5 rounded-full shadow-lg">View +</button></div>
             </div>
@@ -717,44 +585,14 @@ export default function Home() {
           <div className="relative w-full max-w-lg bg-[#0d0d0d] border-l border-[#6f01ff]/40 h-full p-8 md:p-14 overflow-y-auto animate-drawer shadow-2xl">
             <button onClick={() => setSelectedProduct(null)} className="absolute top-10 right-10 z-20 p-4 bg-white/5 rounded-full hover:bg-red-600 transition-all hover:rotate-90 shadow-xl"><X size={24}/></button>
             <div className="relative mb-12 overflow-hidden rounded-[3rem] border border-white/10 aspect-square bg-[#121212]">
-                <img src={selectedProduct.imgs[currentImgIdx]} className="w-full h-full object-cover animate-fade" key={`img-${currentImgIdx}`} />
+                <img src={selectedProduct.imgs[currentImgIdx]} className="w-full h-full object-cover animate-fade" key={currentImgIdx} />
                 {selectedProduct.imgs.length > 1 && (<div className="absolute inset-0 flex items-center justify-between px-6"><button onClick={prevImg} className="p-3 bg-black/60 rounded-full hover:bg-[#6f01ff] transition-all"><ChevronLeft size={24} /></button><button onClick={nextImg} className="p-3 bg-black/60 rounded-full hover:bg-[#6f01ff] transition-all"><ChevronRight size={24} /></button></div>)}
             </div>
             <div className="space-y-8">
               <h2 className="text-5xl md:text-6xl font-black italic uppercase text-white leading-tight">{selectedProduct.name}</h2>
               <p className="text-4xl font-black text-[#6f01ff] underline underline-offset-[12px] decoration-white/10">{selectedProduct.price}</p>
-              
-              <div className="bg-[#6f01ff]/5 p-8 rounded-[3rem] border border-[#6f01ff]/20 text-[#e5c7f4] text-md leading-relaxed shadow-inner min-h-[120px]">
-                {selectedProduct.description}
-              </div>
-
-              <div className="flex items-center space-x-4 bg-white/5 p-6 rounded-2xl border border-white/10 text-xs font-black uppercase tracking-widest"><Maximize size={20} className="text-[#6f01ff]" />Dimension: {selectedProduct.dimensions}</div>
-              
-              <div className="border-t border-white/10 pt-10">
-                <p className="text-[11px] font-black text-[#6f01ff] uppercase tracking-[0.4em] mb-6">Verified Reports</p>
-                {selectedProduct.reviews.length > 0 ? (
-                  <div className="relative bg-white/5 p-8 rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl min-h-[140px]">
-                    <div className="animate-fade" key={`rev-${currentRevIdx}`}>
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="text-xs font-bold text-white italic">{selectedProduct.reviews[currentRevIdx].user}</span>
-                        <div className="flex text-yellow-500 space-x-1"><Star size={14} fill="currentColor" /></div>
-                      </div>
-                      <p className="text-sm italic text-white/70 leading-relaxed">"{selectedProduct.reviews[currentRevIdx].comment}"</p>
-                    </div>
-                    {selectedProduct.reviews.length > 1 && (
-                      <div className="flex items-center justify-between mt-8 pt-5 border-t border-white/5">
-                        <button onClick={prevRev} className="text-white/20 hover:text-white transition-all"><ChevronLeft size={18}/></button>
-                        <span className="text-[10px] font-black text-white/30">{currentRevIdx + 1} / {selectedProduct.reviews.length}</span>
-                        <button onClick={nextRev} className="text-white/20 hover:text-white transition-all"><ChevronRight size={18}/></button>
-                      </div>
-                    )}
-                  </div>
-                ) : <p className="text-[10px] uppercase tracking-widest text-white/10 text-center italic">Scanning the void for feedback...</p>}
-              </div>
-
-              <button disabled={selectedProduct.stock === 'OUT OF STOCK'} onClick={() => addToCart(selectedProduct)} className={`w-full text-white py-8 rounded-full font-black text-2xl transition-all transform active:scale-95 italic shadow-xl mt-10 ${selectedProduct.stock === 'OUT OF STOCK' ? 'bg-zinc-800 opacity-50 cursor-not-allowed' : 'bg-gradient-to-r from-[#6f01ff] to-[#9e4ffe] hover:scale-[1.02]'}`}>
-                {selectedProduct.stock === 'OUT OF STOCK' ? 'SOLD OUT' : 'ADD TO VOID +'}
-              </button>
+              <div className="bg-[#6f01ff]/5 p-8 rounded-[3rem] border border-[#6f01ff]/20 text-[#e5c7f4] text-md leading-relaxed shadow-inner min-h-[120px]">{selectedProduct.description}</div>
+              <button disabled={selectedProduct.stock === 'OUT OF STOCK'} onClick={() => addToCart(selectedProduct)} className={`w-full text-white py-8 rounded-full font-black text-2xl transition-all transform active:scale-95 italic shadow-xl mt-10 ${selectedProduct.stock === 'OUT OF STOCK' ? 'bg-zinc-800 opacity-50 cursor-not-allowed' : 'bg-gradient-to-r from-[#6f01ff] to-[#9e4ffe] hover:scale-[1.02]'}`}>ADD TO VOID +</button>
             </div>
           </div>
         </div>
@@ -767,41 +605,34 @@ export default function Home() {
             <button onClick={() => setIsCartOpen(false)} className="absolute top-10 right-10 p-4 bg-white/5 rounded-full hover:bg-red-600 transition-all shadow-xl"><X size={24}/></button>
             <h2 className="text-4xl font-black italic uppercase text-[#6f01ff] mb-12 tracking-tighter text-center">The Haul</h2>
             <div className="space-y-4 mb-12">{cartItems.map((item, idx) => (
-                <div key={idx} className="flex justify-between items-center bg-white/5 p-7 rounded-[2rem] border border-white/5 shadow-xl transition-all hover:border-[#6f01ff]/30"><div><span className="font-black italic text-md uppercase block text-white">{item.name}</span><span className="text-[10px] text-[#6f01ff] font-bold uppercase">{item.dimensions}</span></div><div className="flex items-center space-x-6"><span className="text-white font-black text-md">{item.price}</span><button onClick={() => removeFromCart(idx)} className="p-2 text-white/20 hover:text-red-500 transition-colors"><Trash2 size={20} /></button></div></div>
+                <div key={`cart-${idx}`} className="flex justify-between items-center bg-white/5 p-7 rounded-[2rem] border border-white/5 shadow-xl transition-all hover:border-[#6f01ff]/30"><div><span className="font-black italic text-md uppercase block text-white">{item.name}</span><span className="text-[10px] text-[#6f01ff] font-bold uppercase">{item.dimensions}</span></div><div className="flex items-center space-x-6"><span className="text-white font-black text-md">{item.price}</span><button onClick={() => removeFromCart(idx)} className="p-2 text-white/20 hover:text-red-500 transition-colors"><Trash2 size={20} /></button></div></div>
             ))}</div>
             <div className="space-y-5">
               <input type="text" placeholder="NAME" value={formData.name} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, name: e.target.value})}/>
-              <input type="text" placeholder="PHONE" value={formData.number} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff]" onChange={(e)=>setFormData({...formData, number: e.target.value})}/>
+              <input type="text" placeholder="PHONE" value={formData.number} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, number: e.target.value})}/>
               <input type="email" placeholder="EMAIL" value={formData.mail} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, mail: e.target.value})}/>
-              
               <div className="grid grid-cols-2 gap-4">
                 <input type="text" placeholder="CITY" value={formData.city} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, city: e.target.value})}/>
                 <input type="text" placeholder="STATE" value={formData.state} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all" onChange={(e)=>setFormData({...formData, state: e.target.value})}/>
               </div>
-
               <textarea placeholder="ADDRESS" rows={3} value={formData.address} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all font-bold" onChange={(e)=>setFormData({...formData, address: e.target.value})}></textarea>
-              
               <div className="bg-[#6f01ff]/5 border border-[#6f01ff]/20 p-8 rounded-[3rem] shadow-inner text-center">
-                <label className="text-[10px] font-black uppercase text-[#6f01ff] mb-4 block tracking-[0.3em]">Pincode Verification</label>
-                <input type="text" placeholder="6-DIGIT" maxLength={6} className="bg-black border border-white/10 rounded-2xl px-6 py-4 text-md w-full outline-none font-black text-[#6f01ff] tracking-[0.6em] text-center" onChange={(e) => handlePincodeChange(e.target.value)} />
-                {deliveryEst && <div className="mt-6 flex items-center justify-center space-x-4 text-green-400 font-black text-xs uppercase italic animate-bounce"><Truck size={22} /><span>{deliveryEst}</span></div>}
+                <input type="text" placeholder="6-DIGIT PIN" maxLength={6} className="bg-black border border-white/10 rounded-2xl px-6 py-4 text-md w-full outline-none font-black text-[#6f01ff] tracking-[0.6em] text-center" onChange={(e) => handlePincodeChange(e.target.value)} />
+                {deliveryEst && <div className="mt-4 flex items-center justify-center space-x-4 text-green-400 font-black text-xs uppercase italic animate-bounce"><Truck size={22} /><span>{deliveryEst}</span></div>}
               </div>
               <div className="pt-10 border-t border-white/10 text-center">
-                <div className="flex justify-between text-2xl font-black mb-10 italic uppercase tracking-tighter"><span>GRAND TOTAL</span><span className="text-[#6f01ff] font-black italic underline underline-offset-8 decoration-white/10">INR {totalPrice.toFixed(2)}</span></div>
-                
+                <div className="flex justify-between text-2xl font-black mb-10 italic uppercase tracking-tighter"><span>GRAND TOTAL</span><span className="text-[#6f01ff]">INR {totalPrice.toFixed(2)}</span></div>
                 {allFieldsFilled ? (
-                    <button onClick={handleCheckoutNow} className="w-full bg-white text-black py-8 rounded-full font-black text-2xl hover:bg-[#6f01ff] hover:text-white transition-all shadow-xl uppercase italic flex items-center justify-center gap-4">Checkout Now</button>
+                    <button onClick={handleCheckoutNow} className="w-full bg-white text-black py-8 rounded-full font-black text-2xl hover:bg-[#6f01ff] hover:text-white transition-all shadow-xl disabled:opacity-20 uppercase italic flex items-center justify-center gap-4">Checkout Now</button>
                 ) : (
                     <div className="w-full bg-white/5 border border-white/10 text-white/40 py-8 rounded-full font-black text-sm uppercase italic tracking-widest cursor-not-allowed">Complete Form To Proceed</div>
                 )}
-                
               </div>
             </div>
           </div>
         </div>
       )}
       {toast && <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[1000] bg-white text-black px-12 py-5 rounded-full font-black uppercase italic text-xs shadow-2xl">{toast}</div>}
-      
       <style jsx global>{`
         @keyframes drawer { from { transform: translateX(100%); } to { transform: translateX(0); } }
         .animate-drawer { animation: drawer 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
