@@ -532,9 +532,9 @@ export default function Home() {
             <div className="flex flex-col items-center justify-center space-y-6">
                 <a href="mailto:morphstudio3d@gmail.com" className="flex items-center space-x-3 text-white/30 hover:text-[#6f01ff] transition-all group">
                     <Mail size={18} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">morphstudio3d@gmail.com</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest">themorphstudios@gmail.com</span>
                 </a>
-                <a href="https://instagram.com/morphstudio.3d" target="_blank" className="p-4 bg-white/5 rounded-full text-white/30 hover:text-white hover:bg-[#6f01ff]/20 transition-all shadow-xl">
+                <a href="https://www.instagram.com/the_morph_studios?igsh=MnJoZmIxcDQyMm52" target="_blank" className="p-4 bg-white/5 rounded-full text-white/30 hover:text-white hover:bg-[#6f01ff]/20 transition-all shadow-xl">
                     <Instagram size={24} />
                 </a>
             </div>
