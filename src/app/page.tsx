@@ -393,22 +393,22 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
             <div className="bg-zinc-900 p-8 rounded-[2.5rem] border border-white/5">
                 <IndianRupee className="text-[#6f01ff] mb-2" size={20} />
-                <p className="text-[10px] uppercase opacity-40 font-bold">Revenue</p>
+                <p className="text-[10px] uppercase opacity-40 font-bold tracking-widest">Revenue</p>
                 <h3 className="text-3xl font-black">₹{totalRevenue.toFixed(2)}</h3>
             </div>
             <div className="bg-zinc-900 p-8 rounded-[2.5rem] border border-white/5">
                 <ShoppingCart className="text-blue-400 mb-2" size={20} />
-                <p className="text-[10px] uppercase opacity-40 font-bold">Orders</p>
+                <p className="text-[10px] uppercase opacity-40 font-bold tracking-widest">Orders</p>
                 <h3 className="text-3xl font-black">{orders.length}</h3>
             </div>
             <div className="bg-zinc-900 p-8 rounded-[2.5rem] border border-white/5">
                 <PackageSearch className="text-yellow-500 mb-2" size={20} />
-                <p className="text-[10px] uppercase opacity-40 font-bold">Pending</p>
+                <p className="text-[10px] uppercase opacity-40 font-bold tracking-widest">Pending</p>
                 <h3 className="text-3xl font-black">{orders.filter(o => ['Pending', 'Packed', 'Awaiting Payment'].includes(o.status)).length}</h3>
             </div>
             <div className="bg-zinc-900 p-8 rounded-[2.5rem] border border-white/5">
                 <BarChart3 className="text-green-500 mb-2" size={20} />
-                <p className="text-[10px] uppercase opacity-40 font-bold">Products</p>
+                <p className="text-[10px] uppercase opacity-40 font-bold tracking-widest">Products</p>
                 <h3 className="text-3xl font-black">{products.length}</h3>
             </div>
           </div>
@@ -484,7 +484,7 @@ export default function Home() {
                                             </div>
                                         </td>
                                         <td className="p-6 font-black">₹{o.amount.toFixed(2)}</td>
-                                        <td className="p-6 text-right"><button onClick={()=>deleteOrder(o.id)} className="text-red-500/50 hover:text-red-500"><Trash2 size={16}/></button></td>
+                                        <td className="p-6 text-right"><button onClick={()=>deleteOrder(o.id)} className="text-red-500/50 hover:text-red-500 transition-colors"><Trash2 size={16}/></button></td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -493,7 +493,7 @@ export default function Home() {
                 </div>
 
                 <div className="bg-zinc-900 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl">
-                    <div className="p-8 border-b border-white/5 bg-white/[0.02] flex justify-between items-center"><h2 className="text-sm font-black uppercase italic tracking-widest">Inventory</h2></div>
+                    <div className="p-8 border-b border-white/5 bg-white/[0.02] flex justify-between items-center"><h2 className="text-sm font-black uppercase italic tracking-widest">Inventory Management</h2></div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs">
                             <tbody className="divide-y divide-white/5">
@@ -515,6 +515,7 @@ export default function Home() {
     );
   }
 
+  // --- 5. LANDING VIEW ---
   if (view === 'landing') {
     return (
       <div className="bg-black min-h-screen font-sans text-white overflow-x-hidden animate-fade">
@@ -553,7 +554,6 @@ export default function Home() {
                     <Instagram size={24} />
                 </a>
                 
-                {/* NEW PRIVACY POLICY BUTTON */}
                 <button 
                   onClick={() => setShowPrivacy(true)}
                   className="mt-8 flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.3em] text-white/20 hover:text-[#6f01ff] transition-all border border-white/5 px-6 py-2 rounded-full"
@@ -563,50 +563,17 @@ export default function Home() {
             </div>
         </footer>
 
-        {/* PRIVACY POLICY POPUP */}
         {showPrivacy && (
           <div className="fixed inset-0 z-[700] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md animate-fade">
              <div className="relative w-full max-w-2xl bg-zinc-900 border border-white/10 p-8 md:p-12 rounded-[3rem] shadow-2xl max-h-[80vh] overflow-y-auto">
                 <button onClick={() => setShowPrivacy(false)} className="absolute top-8 right-8 text-white/20 hover:text-white transition-all"><X size={24}/></button>
-                
-                <h2 className="text-3xl font-black italic uppercase text-[#6f01ff] mb-8 flex items-center gap-4">
-                  <ShieldCheck size={32} /> Privacy Terms
-                </h2>
-                
+                <h2 className="text-3xl font-black italic uppercase text-[#6f01ff] mb-8 flex items-center gap-4"><ShieldCheck size={32} /> Privacy Terms</h2>
                 <div className="space-y-6 text-sm text-white/70 leading-relaxed font-medium">
-                  <section>
-                    <h3 className="text-white font-black uppercase tracking-widest mb-2 text-xs">1. Data Collection</h3>
-                    <p>We collect essential information required to fulfill your orders, including your name, contact number, shipping address, and email. This data is used solely for order processing and delivery coordination.</p>
-                  </section>
-                  
-                  <section>
-                    <h3 className="text-white font-black uppercase tracking-widest mb-2 text-xs">2. Order Processing</h3>
-                    <p>Payments are handled securely via Razorpay. Morph Studio does not store your credit card details or bank credentials on our servers.</p>
-                  </section>
-                  
-                  <section>
-                    <h3 className="text-white font-black uppercase tracking-widest mb-2 text-xs">3. Local Storage</h3>
-                    <p>This site uses browser local storage to maintain your cart and session preferences. This information stays on your device.</p>
-                  </section>
-                  
-                  <section>
-                    <h3 className="text-white font-black uppercase tracking-widest mb-2 text-xs">4. Communication</h3>
-                    <p>By placing an order, you agree to receive transactional updates via Email or SMS regarding your haul status.</p>
-                  </section>
-
-                   <section>
-                    <h3 className="text-white font-black uppercase tracking-widest mb-2 text-xs">5. Refund Policy</h3>
-                    <p>We have no refund policy, order once placed cannot be cancelled or claimed for refund.</p>
-                  </section>
-
-                  <div className="pt-8 border-t border-white/5">
-                    <button 
-                      onClick={() => setShowPrivacy(false)}
-                      className="w-full bg-[#6f01ff] text-white py-4 rounded-2xl font-black uppercase italic tracking-widest shadow-lg hover:scale-[1.02] transition-all"
-                    >
-                      Acknowledge Terms
-                    </button>
-                  </div>
+                  <section><h3 className="text-white font-black uppercase tracking-widest mb-2 text-xs">1. Data Collection</h3><p>We collect essential information required to fulfill your orders, including your name, contact number, shipping address, and email.</p></section>
+                  <section><h3 className="text-white font-black uppercase tracking-widest mb-2 text-xs">2. Order Processing</h3><p>Payments handled securely via Razorpay. We do not store your financial credentials.</p></section>
+                  <section><h3 className="text-white font-black uppercase tracking-widest mb-2 text-xs">3. Local Storage</h3><p>This site uses browser local storage to maintain your cart and session preferences.</p></section>
+                  <section><h3 className="text-white font-black uppercase tracking-widest mb-2 text-xs">4. Refund Policy</h3><p>We have a no-refund policy. Once an order is placed and confirmed, it cannot be cancelled or claimed for a refund.</p></section>
+                  <div className="pt-8 border-t border-white/5"><button onClick={() => setShowPrivacy(false)} className="w-full bg-[#6f01ff] text-white py-4 rounded-2xl font-black uppercase italic tracking-widest shadow-lg hover:scale-[1.02] transition-all">Acknowledge Terms</button></div>
                 </div>
              </div>
           </div>
@@ -629,6 +596,7 @@ export default function Home() {
     );
   }
 
+  // --- 6. STORE VIEW ---
   return (
     <main className="relative bg-[#050505] min-h-screen text-[#fff1f1] p-4 md:p-8 font-sans overflow-x-hidden animate-fade">
       <div className="fixed top-[-10%] left-[-10%] w-[70%] h-[70%] bg-[#6f01ff]/20 blur-[180px] animate-pulse pointer-events-none" />
@@ -655,7 +623,17 @@ export default function Home() {
         <div className="fixed inset-0 z-[400] flex justify-end">
           <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => setSelectedProduct(null)} />
           <div className="relative w-full max-w-lg bg-[#0d0d0d] border-l border-[#6f01ff]/40 h-full p-8 md:p-14 overflow-y-auto animate-drawer shadow-2xl">
-            <button onClick={() => setSelectedProduct(null)} className="absolute top-10 right-10 p-4 bg-white/5 rounded-full hover:bg-red-600 transition-all hover:rotate-90 shadow-xl"><X size={24}/></button>
+            
+            {/* ADDED BACK OPTION */}
+            <div className="flex justify-between items-center mb-8">
+              <button onClick={() => setSelectedProduct(null)} className="text-[10px] font-black uppercase tracking-[0.3em] text-[#6f01ff] hover:text-white transition-all flex items-center gap-2">
+                <ChevronLeft size={16} /> Back to Store
+              </button>
+              <button onClick={() => setSelectedProduct(null)} className="p-3 bg-white/5 rounded-full hover:bg-red-600 transition-all hover:rotate-90">
+                <X size={20}/>
+              </button>
+            </div>
+
             <div className="relative mb-12 overflow-hidden rounded-[3rem] border border-white/10 aspect-square bg-[#121212]">
                 <img src={selectedProduct.imgs[currentImgIdx]} className="w-full h-full object-cover animate-fade" key={currentImgIdx} />
                 {selectedProduct.imgs.length > 1 && (<div className="absolute inset-0 flex items-center justify-between px-6"><button onClick={prevImg} className="p-3 bg-black/60 rounded-full hover:bg-[#6f01ff] transition-all"><ChevronLeft size={24} /></button><button onClick={nextImg} className="p-3 bg-black/60 rounded-full hover:bg-[#6f01ff] transition-all"><ChevronRight size={24} /></button></div>)}
@@ -690,7 +668,7 @@ export default function Home() {
               <textarea placeholder="ADDRESS" rows={3} value={formData.address} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all font-bold" onChange={(e)=>setFormData({...formData, address: e.target.value})}></textarea>
               <div className="bg-[#6f01ff]/5 border border-[#6f01ff]/20 p-8 rounded-[3rem] shadow-inner text-center">
                 <input type="text" placeholder="6-DIGIT PIN" maxLength={6} className="bg-black border border-white/10 rounded-2xl px-6 py-4 text-md w-full outline-none font-black text-[#6f01ff] tracking-[0.6em] text-center" onChange={(e) => handlePincodeChange(e.target.value)} />
-                {deliveryEst && <div className="mt-6 flex items-center justify-center space-x-4 text-green-400 font-black text-xs uppercase italic animate-bounce"><Truck size={22} /><span>{deliveryEst}</span></div>}
+                {deliveryEst && <div className="mt-4 flex items-center justify-center space-x-4 text-green-400 font-black text-xs uppercase italic animate-bounce"><Truck size={22} /><span>{deliveryEst}</span></div>}
               </div>
               <div className="pt-10 border-t border-white/10 text-center">
                 <div className="flex justify-between text-2xl font-black mb-10 italic uppercase tracking-tighter"><span>GRAND TOTAL</span><span className="text-[#6f01ff]">INR {totalPrice.toFixed(2)}</span></div>
