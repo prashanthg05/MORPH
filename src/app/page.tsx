@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ShoppingBag, Maximize, Zap, X, Truck, User, Mail, 
   MapPin, Phone, Calendar, Trash2, Star, ChevronRight, ChevronLeft,
-  LayoutDashboard, PackageCheck, PackageSearch, IndianRupee, TrendingUp, Filter, Lock, Plus, PlusCircle, Database, Image as ImageIcon, Upload, CheckCircle2, AlertCircle, ShoppingCart, BarChart3, RefreshCw, Instagram
+  LayoutDashboard, PackageCheck, PackageSearch, IndianRupee, TrendingUp, Filter, Lock, Plus, PlusCircle, Database, Image as ImageIcon, Upload, CheckCircle2, AlertCircle, ShoppingCart, BarChart3, RefreshCw, Instagram, ShieldCheck
 } from 'lucide-react';
 
 // --- TYPES ---
@@ -55,6 +55,7 @@ export default function Home() {
   const [formData, setFormData] = useState({ name: '', number: '', mail: '', address: '', city: '', state: '', age: '' });
   const [toast, setToast] = useState<string | null>(null);
   const [orderFilter, setOrderFilter] = useState<'Pending' | 'Completed'>('Pending');
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   // --- DATABASE HELPER ---
   const syncAdmin = async (action: string, payload: any = {}) => {
@@ -80,7 +81,7 @@ export default function Home() {
       triggerToast(`❌ Error: ${e.message}`);
       return false;
     }
-  };
+};
 
   // --- 2. LOADING LOGIC ---
   useEffect(() => {
@@ -384,22 +385,22 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
             <div className="bg-zinc-900 p-8 rounded-[2.5rem] border border-white/5">
                 <IndianRupee className="text-[#6f01ff] mb-2" size={20} />
-                <p className="text-[10px] uppercase opacity-40 font-bold tracking-widest">Revenue</p>
+                <p className="text-[10px] uppercase opacity-40 font-bold">Revenue</p>
                 <h3 className="text-3xl font-black">₹{totalRevenue.toFixed(2)}</h3>
             </div>
             <div className="bg-zinc-900 p-8 rounded-[2.5rem] border border-white/5">
                 <ShoppingCart className="text-blue-400 mb-2" size={20} />
-                <p className="text-[10px] uppercase opacity-40 font-bold tracking-widest">Orders</p>
+                <p className="text-[10px] uppercase opacity-40 font-bold">Orders</p>
                 <h3 className="text-3xl font-black">{orders.length}</h3>
             </div>
             <div className="bg-zinc-900 p-8 rounded-[2.5rem] border border-white/5">
                 <PackageSearch className="text-yellow-500 mb-2" size={20} />
-                <p className="text-[10px] uppercase opacity-40 font-bold tracking-widest">Pending</p>
+                <p className="text-[10px] uppercase opacity-40 font-bold">Pending</p>
                 <h3 className="text-3xl font-black">{orders.filter(o => ['Pending', 'Packed', 'Awaiting Payment'].includes(o.status)).length}</h3>
             </div>
             <div className="bg-zinc-900 p-8 rounded-[2.5rem] border border-white/5">
                 <BarChart3 className="text-green-500 mb-2" size={20} />
-                <p className="text-[10px] uppercase opacity-40 font-bold tracking-widest">Products</p>
+                <p className="text-[10px] uppercase opacity-40 font-bold">Products</p>
                 <h3 className="text-3xl font-black">{products.length}</h3>
             </div>
           </div>
@@ -409,7 +410,7 @@ export default function Home() {
                 <div className="bg-zinc-900 border border-white/5 p-8 rounded-[3rem] shadow-xl">
                     <h2 className="text-sm font-black uppercase italic mb-6 text-[#6f01ff]">New Artifact</h2>
                     <form onSubmit={handleUploadProduct} className="space-y-4">
-                        <input type="text" placeholder="PRODUCT NAME" required className="w-full bg-black border border-white/10 rounded-2xl py-4 px-6 text-xs font-bold outline-none" value={newProd.name} onChange={(e)=>setNewProd({...newProd, name: e.target.value})}/>
+                        <input type="text" placeholder="NAME" required className="w-full bg-black border border-white/10 rounded-2xl py-4 px-6 text-xs font-bold outline-none" value={newProd.name} onChange={(e)=>setNewProd({...newProd, name: e.target.value})}/>
                         <textarea placeholder="DESCRIPTION" required rows={2} className="w-full bg-black border border-white/10 rounded-2xl py-4 px-6 text-xs font-bold outline-none" value={newProd.desc} onChange={(e)=>setNewProd({...newProd, desc: e.target.value})}/>
                         <select className="w-full bg-black border border-white/10 rounded-2xl py-4 px-6 text-xs font-bold" value={newProd.category} onChange={(e)=>setNewProd({...newProd, category: e.target.value})}>
                             {categories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
@@ -423,7 +424,7 @@ export default function Home() {
                             <p className="text-[9px] font-bold opacity-30 uppercase">Images ({localImgs.length}/4)</p>
                             <input type="file" multiple accept="image/*" className="hidden" onChange={(e)=>handleFileChange(e, 'product')}/>
                         </label>
-                        <button type="submit" className="w-full bg-[#6f01ff] text-white py-4 rounded-2xl font-black uppercase italic text-xs tracking-widest shadow-lg">Deploy</button>
+                        <button type="submit" className="w-full bg-[#6f01ff] text-white py-4 rounded-2xl font-black uppercase italic text-xs tracking-widest shadow-lg">Verify</button>
                     </form>
                 </div>
 
@@ -468,17 +469,16 @@ export default function Home() {
                                         </td>
                                         <td className="p-6"><p className="font-black uppercase italic">{o.customer}</p><p className="text-[9px] opacity-40">{o.email}</p></td>
                                         <td className="p-6 font-black">₹{o.amount.toFixed(2)}</td>
-                                        <td className="p-6 text-right"><button onClick={()=>deleteOrder(o.id)} className="text-red-500/50 hover:text-red-500 transition-colors"><Trash2 size={16}/></button></td>
+                                        <td className="p-6 text-right"><button onClick={()=>deleteOrder(o.id)} className="text-red-500/50 hover:text-red-500"><Trash2 size={16}/></button></td>
                                     </tr>
                                 ))}
-                                {displayOrders.length === 0 && <tr><td colSpan={4} className="p-12 text-center opacity-20 font-black uppercase italic">The pipeline is clear</td></tr>}
                             </tbody>
                         </table>
                     </div>
                 </div>
 
                 <div className="bg-zinc-900 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl">
-                    <div className="p-8 border-b border-white/5 bg-white/[0.02] flex justify-between items-center"><h2 className="text-sm font-black uppercase italic tracking-widest">Inventory Management</h2></div>
+                    <div className="p-8 border-b border-white/5 bg-white/[0.02] flex justify-between items-center"><h2 className="text-sm font-black uppercase italic tracking-widest">Inventory</h2></div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs">
                             <tbody className="divide-y divide-white/5">
@@ -516,7 +516,7 @@ export default function Home() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent z-20" />
                 <div className="absolute bottom-12 left-12 z-30">
                   <h2 className={`font-black italic uppercase tracking-tighter leading-none drop-shadow-2xl text-white ${idx === 0 ? 'text-5xl md:text-8xl' : 'text-3xl md:text-4xl'}`}>{cat.name}</h2>
-                  <p className="text-[#6f01ff] font-black tracking-[0.5em] uppercase mt-6 text-[10px] flex items-center gap-3"><span className="w-2 h-2 bg-[#6f01ff] rounded-full animate-ping" /> ENTER VOID</p>
+                  <p className="text-[#6f01ff] font-black tracking-[0.5em] uppercase mt-6 text-[10px] flex items-center gap-3"><span className="w-2 h-2 bg-[#6f01ff] rounded-full animate-ping" /> Enter This Realm</p>
                 </div>
               </div>
             )
@@ -530,15 +530,72 @@ export default function Home() {
             </div>
 
             <div className="flex flex-col items-center justify-center space-y-6">
-                <a href="mailto:morphstudio3d@gmail.com" className="flex items-center space-x-3 text-white/30 hover:text-[#6f01ff] transition-all group">
+                <a href="mailto:themorphstudios@gmail.com" className="flex items-center space-x-3 text-white/30 hover:text-[#6f01ff] transition-all group">
                     <Mail size={18} />
                     <span className="text-[10px] font-black uppercase tracking-widest">themorphstudios@gmail.com</span>
                 </a>
-                <a href="https://www.instagram.com/the_morph_studios?igsh=MnJoZmIxcDQyMm52" target="_blank" className="p-4 bg-white/5 rounded-full text-white/30 hover:text-white hover:bg-[#6f01ff]/20 transition-all shadow-xl">
+                <a href="https://instagram.com/morphstudio.3d" target="_blank" className="p-4 bg-white/5 rounded-full text-white/30 hover:text-white hover:bg-[#6f01ff]/20 transition-all shadow-xl">
                     <Instagram size={24} />
                 </a>
+                
+                {/* NEW PRIVACY POLICY BUTTON */}
+                <button 
+                  onClick={() => setShowPrivacy(true)}
+                  className="mt-8 flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.3em] text-white/20 hover:text-[#6f01ff] transition-all border border-white/5 px-6 py-2 rounded-full"
+                >
+                  <ShieldCheck size={12} /> Privacy Policy
+                </button>
             </div>
         </footer>
+
+        {/* PRIVACY POLICY POPUP */}
+        {showPrivacy && (
+          <div className="fixed inset-0 z-[700] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md animate-fade">
+             <div className="relative w-full max-w-2xl bg-zinc-900 border border-white/10 p-8 md:p-12 rounded-[3rem] shadow-2xl max-h-[80vh] overflow-y-auto">
+                <button onClick={() => setShowPrivacy(false)} className="absolute top-8 right-8 text-white/20 hover:text-white transition-all"><X size={24}/></button>
+                
+                <h2 className="text-3xl font-black italic uppercase text-[#6f01ff] mb-8 flex items-center gap-4">
+                  <ShieldCheck size={32} /> Privacy Terms
+                </h2>
+                
+                <div className="space-y-6 text-sm text-white/70 leading-relaxed font-medium">
+                  <section>
+                    <h3 className="text-white font-black uppercase tracking-widest mb-2 text-xs">1. Data Collection</h3>
+                    <p>We collect essential information required to fulfill your orders, including your name, contact number, shipping address, and email. This data is used solely for order processing and delivery coordination.</p>
+                  </section>
+                  
+                  <section>
+                    <h3 className="text-white font-black uppercase tracking-widest mb-2 text-xs">2. Order Processing</h3>
+                    <p>Payments are handled securely via Razorpay. Morph Studio does not store your credit card details or bank credentials on our servers.</p>
+                  </section>
+                  
+                  <section>
+                    <h3 className="text-white font-black uppercase tracking-widest mb-2 text-xs">3. Local Storage</h3>
+                    <p>This site uses browser local storage to maintain your cart and session preferences. This information stays on your device.</p>
+                  </section>
+                  
+                  <section>
+                    <h3 className="text-white font-black uppercase tracking-widest mb-2 text-xs">4. Communication</h3>
+                    <p>By placing an order, you agree to receive transactional updates via Email or SMS regarding your haul status.</p>
+                  </section>
+
+                   <section>
+                    <h3 className="text-white font-black uppercase tracking-widest mb-2 text-xs">5. Refund Policy</h3>
+                    <p>We have no refund policy, order once placed cannot be cancelled or claimed for refund.</p>
+                  </section>
+
+                  <div className="pt-8 border-t border-white/5">
+                    <button 
+                      onClick={() => setShowPrivacy(false)}
+                      className="w-full bg-[#6f01ff] text-white py-4 rounded-2xl font-black uppercase italic tracking-widest shadow-lg hover:scale-[1.02] transition-all"
+                    >
+                      Acknowledge Terms
+                    </button>
+                  </div>
+                </div>
+             </div>
+          </div>
+        )}
         
         {showLogin && (
             <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 bg-black/95 backdrop-blur-sm animate-fade">
@@ -583,7 +640,7 @@ export default function Home() {
         <div className="fixed inset-0 z-[400] flex justify-end">
           <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => setSelectedProduct(null)} />
           <div className="relative w-full max-w-lg bg-[#0d0d0d] border-l border-[#6f01ff]/40 h-full p-8 md:p-14 overflow-y-auto animate-drawer shadow-2xl">
-            <button onClick={() => setSelectedProduct(null)} className="absolute top-10 right-10 z-20 p-4 bg-white/5 rounded-full hover:bg-red-600 transition-all hover:rotate-90 shadow-xl"><X size={24}/></button>
+            <button onClick={() => setSelectedProduct(null)} className="absolute top-10 right-10 p-4 bg-white/5 rounded-full hover:bg-red-600 transition-all hover:rotate-90 shadow-xl"><X size={24}/></button>
             <div className="relative mb-12 overflow-hidden rounded-[3rem] border border-white/10 aspect-square bg-[#121212]">
                 <img src={selectedProduct.imgs[currentImgIdx]} className="w-full h-full object-cover animate-fade" key={currentImgIdx} />
                 {selectedProduct.imgs.length > 1 && (<div className="absolute inset-0 flex items-center justify-between px-6"><button onClick={prevImg} className="p-3 bg-black/60 rounded-full hover:bg-[#6f01ff] transition-all"><ChevronLeft size={24} /></button><button onClick={nextImg} className="p-3 bg-black/60 rounded-full hover:bg-[#6f01ff] transition-all"><ChevronRight size={24} /></button></div>)}
@@ -592,7 +649,7 @@ export default function Home() {
               <h2 className="text-5xl md:text-6xl font-black italic uppercase text-white leading-tight">{selectedProduct.name}</h2>
               <p className="text-4xl font-black text-[#6f01ff] underline underline-offset-[12px] decoration-white/10">{selectedProduct.price}</p>
               <div className="bg-[#6f01ff]/5 p-8 rounded-[3rem] border border-[#6f01ff]/20 text-[#e5c7f4] text-md leading-relaxed shadow-inner min-h-[120px]">{selectedProduct.description}</div>
-              <button disabled={selectedProduct.stock === 'OUT OF STOCK'} onClick={() => addToCart(selectedProduct)} className={`w-full text-white py-8 rounded-full font-black text-2xl transition-all transform active:scale-95 italic shadow-xl mt-10 ${selectedProduct.stock === 'OUT OF STOCK' ? 'bg-zinc-800 opacity-50 cursor-not-allowed' : 'bg-gradient-to-r from-[#6f01ff] to-[#9e4ffe] hover:scale-[1.02]'}`}>ADD TO VOID +</button>
+              <button disabled={selectedProduct.stock === 'OUT OF STOCK'} onClick={() => addToCart(selectedProduct)} className={`w-full text-white py-8 rounded-full font-black text-2xl transition-all transform active:scale-95 italic shadow-xl mt-10 ${selectedProduct.stock === 'OUT OF STOCK' ? 'bg-zinc-800 opacity-50 cursor-not-allowed' : 'bg-gradient-to-r from-[#6f01ff] to-[#9e4ffe] hover:scale-[1.02]'}`}>ADD TO CART +</button>
             </div>
           </div>
         </div>
@@ -603,7 +660,7 @@ export default function Home() {
           <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => setIsCartOpen(false)} />
           <div className="relative w-full max-w-lg bg-[#0d0d0d] border-l border-[#6f01ff]/40 h-full p-8 md:p-14 overflow-y-auto animate-drawer shadow-2xl">
             <button onClick={() => setIsCartOpen(false)} className="absolute top-10 right-10 p-4 bg-white/5 rounded-full hover:bg-red-600 transition-all shadow-xl"><X size={24}/></button>
-            <h2 className="text-4xl font-black italic uppercase text-[#6f01ff] mb-12 tracking-tighter text-center">The Haul</h2>
+            <h2 className="text-4xl font-black italic uppercase text-[#6f01ff] mb-12 tracking-tighter text-center">Loadout</h2>
             <div className="space-y-4 mb-12">{cartItems.map((item, idx) => (
                 <div key={`cart-${idx}`} className="flex justify-between items-center bg-white/5 p-7 rounded-[2rem] border border-white/5 shadow-xl transition-all hover:border-[#6f01ff]/30"><div><span className="font-black italic text-md uppercase block text-white">{item.name}</span><span className="text-[10px] text-[#6f01ff] font-bold uppercase">{item.dimensions}</span></div><div className="flex items-center space-x-6"><span className="text-white font-black text-md">{item.price}</span><button onClick={() => removeFromCart(idx)} className="p-2 text-white/20 hover:text-red-500 transition-colors"><Trash2 size={20} /></button></div></div>
             ))}</div>
@@ -618,7 +675,7 @@ export default function Home() {
               <textarea placeholder="ADDRESS" rows={3} value={formData.address} className="w-full bg-black border border-white/10 rounded-3xl py-5 px-6 text-sm font-bold outline-none focus:border-[#6f01ff] transition-all font-bold" onChange={(e)=>setFormData({...formData, address: e.target.value})}></textarea>
               <div className="bg-[#6f01ff]/5 border border-[#6f01ff]/20 p-8 rounded-[3rem] shadow-inner text-center">
                 <input type="text" placeholder="6-DIGIT PIN" maxLength={6} className="bg-black border border-white/10 rounded-2xl px-6 py-4 text-md w-full outline-none font-black text-[#6f01ff] tracking-[0.6em] text-center" onChange={(e) => handlePincodeChange(e.target.value)} />
-                {deliveryEst && <div className="mt-4 flex items-center justify-center space-x-4 text-green-400 font-black text-xs uppercase italic animate-bounce"><Truck size={22} /><span>{deliveryEst}</span></div>}
+                {deliveryEst && <div className="mt-6 flex items-center justify-center space-x-4 text-green-400 font-black text-xs uppercase italic animate-bounce"><Truck size={22} /><span>{deliveryEst}</span></div>}
               </div>
               <div className="pt-10 border-t border-white/10 text-center">
                 <div className="flex justify-between text-2xl font-black mb-10 italic uppercase tracking-tighter"><span>GRAND TOTAL</span><span className="text-[#6f01ff]">INR {totalPrice.toFixed(2)}</span></div>
