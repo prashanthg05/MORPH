@@ -62,7 +62,10 @@ export default function Home() {
     try { 
       const res = await fetch('/api/admin', { 
         method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-admin-password': typeof window !== 'undefined' ? localStorage.getItem('morph_admin_pass') || '' : ''
+        },
         body: JSON.stringify({ action, payload }) 
       }); 
       
@@ -92,7 +95,9 @@ export default function Home() {
       if (savedUser) setFormData(JSON.parse(savedUser));
 
       try {
-        const res = await fetch('/api/admin');
+        const res = await fetch('/api/admin', {
+          headers: { 'x-admin-password': typeof window !== 'undefined' ? localStorage.getItem('morph_admin_pass') || '' : '' }
+        });
         const dbData = await res.json();
         
         if (dbData.products && dbData.products.length > 0) setProducts(dbData.products);
@@ -120,7 +125,9 @@ export default function Home() {
   const refreshDashboard = async () => {
     triggerToast("⏳ Syncing...");
     try {
-      const res = await fetch('/api/admin');
+      const res = await fetch('/api/admin', {
+        headers: { 'x-admin-password': typeof window !== 'undefined' ? localStorage.getItem('morph_admin_pass') || '' : '' }
+      });
       const dbData = await res.json();
       
       if (dbData.products && dbData.products.length > 0) setProducts(dbData.products);
@@ -253,6 +260,7 @@ export default function Home() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (loginCreds.user === "A" && loginCreds.pass === "1") {
+        localStorage.setItem('morph_admin_pass', loginCreds.pass);
         setView('admin'); setShowLogin(false); setLoginCreds({ user: '', pass: '' });
     } else triggerToast("Invalid Credentials");
   };
@@ -467,7 +475,14 @@ export default function Home() {
                                                 <option value="Pending">Pending</option><option value="Shipped">Shipped</option><option value="Fulfilled">Fulfilled</option>
                                             </select>
                                         </td>
-                                        <td className="p-6"><p className="font-black uppercase italic">{o.customer}</p><p className="text-[9px] opacity-40">{o.email}</p></td>
+                                        <td className="p-6">
+                                            <p className="font-black uppercase italic mb-1">{o.customer}</p>
+                                            <p className="text-[9px] opacity-60 mb-1">{o.email} {o.phone ? `• ${o.phone}` : ''}</p>
+                                            <p className="text-[9px] opacity-40 mb-2">{o.address && `${o.address},`} {o.city} {o.state} {o.pincode}</p>
+                                            <div className="text-[9px] text-[#6f01ff] font-bold">
+                                                {o.items?.map((it: string, idx: number) => <span key={idx} className="block">• {it}</span>)}
+                                            </div>
+                                        </td>
                                         <td className="p-6 font-black">₹{o.amount.toFixed(2)}</td>
                                         <td className="p-6 text-right"><button onClick={()=>deleteOrder(o.id)} className="text-red-500/50 hover:text-red-500"><Trash2 size={16}/></button></td>
                                     </tr>

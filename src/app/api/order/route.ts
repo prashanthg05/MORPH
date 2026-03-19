@@ -23,7 +23,39 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { amount, items, fullItems, customer, email, phone, address, city, state, pincode } = body;
 
+    // Strict backend validation for delivery info
+    if (!customer || !email || !phone || !address || !city || !state || !pincode) {
+        throw new Error('Incomplete customer delivery information provided.');
+    }
+
     const db = getDB(request);
+
+    // SECURE PRICE CALCULATION
+    let calculatedAmount = 0;
+    let validatedItems: string[] = [];
+    let validatedFullItems: any[] = [];
+
+    if (items && Array.isArray(items) && items.length > 0) {
+        const placeholders = items.map(() => '?').join(',');
+        const dbProducts = await db.prepare(`SELECT * FROM products WHERE name IN (${placeholders})`).bind(...items).all();
+        
+        for (const itemName of items) {
+           const dbItem = dbProducts.results?.find((p: any) => p.name === itemName);
+           if (dbItem) {
+              const priceStr = String(dbItem.price) || '0';
+              const priceNum = parseFloat(priceStr.replace(/[^0-9.]/g, '') || '0');
+              calculatedAmount += priceNum;
+              validatedItems.push(dbItem.name);
+              validatedFullItems.push(dbItem);
+           }
+        }
+    } else {
+        throw new Error("Cart is empty or contains invalid items");
+    }
+
+    if (calculatedAmount === 0 || isNaN(calculatedAmount)) {
+        throw new Error("Invalid order amount calculation");
+    }
 
     // Create Razorpay Order
     const key_id = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
@@ -34,7 +66,7 @@ export async function POST(request: NextRequest) {
     }
 
     const instance = new Razorpay({ key_id, key_secret });
-    const amountInPaise = Math.round(amount * 100);
+    const amountInPaise = Math.round(calculatedAmount * 100);
 
     const rzpOrder = await instance.orders.create({
       amount: amountInPaise,
@@ -43,13 +75,13 @@ export async function POST(request: NextRequest) {
     });
 
     const orderId = rzpOrder.id; // Correct Razorpay Order ID
-    const date = new Date().toLocaleDateString();
+    const date = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
     await db.prepare(
       'INSERT INTO orders (id, customer, phone, email, address, city, state, pincode, amount, status, date, items, fullItems) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).bind(
       orderId, customer || '', phone || '', email || '', address || '', city || '', state || '', pincode || '',
-      amount || 0, 'Awaiting Payment', date, JSON.stringify(items || []), JSON.stringify(fullItems || [])
+      calculatedAmount, 'Awaiting Payment', date, JSON.stringify(validatedItems), JSON.stringify(validatedFullItems)
     ).run();
 
     console.log('✅ Order created:', orderId);
